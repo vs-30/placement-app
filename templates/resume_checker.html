@@ -2,52 +2,58 @@
 
 {% block content %}
 <div class="container mt-5">
-  <div class="card shadow-lg p-4">
-    <h2 class="mb-4 text-center">📄 Resume Checker</h2>
-    <form method="POST" enctype="multipart/form-data">
-      <div class="mb-3">
-        <label class="form-label">Select Role</label>
-        <select class="form-select" name="role" required>
-          <option value="">Choose...</option>
-          <option>Software Developer / Full Stack Developer</option>
-          <option>Software Tester / QA Engineer</option>
-          <option>Database Engineer / Data Analyst</option>
-          <option>AI/ML Engineer / Data Scientist</option>
-        </select>
-      </div>
+    <!-- Card with curved corners and shadow -->
+    <div class="card shadow-lg rounded-4 p-4">
+        <h2 class="mb-4">Resume Checker</h2>
 
-      <div class="mb-3">
-        <label class="form-label">Select Company</label>
-        <select class="form-select" name="company" required>
-          <option value="">Choose...</option>
-          <option>Amazon</option>
-          <option>Wells Fargo</option>
-          <option>Fidelity</option>
-          <option>Paypal</option>
-          <option>Roche</option>
-          <option>Deloitte</option>
-          <option>TCS</option>
-          <option>Accenture</option>
-          <option>Wipro</option>
-        </select>
-      </div>
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
 
-      <div class="mb-3">
-        <label class="form-label">Upload Resume (PDF)</label>
-        <input class="form-control" type="file" name="resume" accept="application/pdf" required />
-      </div>
+        <form method="POST" enctype="multipart/form-data">
+            <!-- Role Choice -->
+            <div class="mb-4">
+                <label class="form-label fw-bold">What role are you applying for?</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="role" value="Software Engineer" id="role1" required>
+                    <label class="form-check-label" for="role1">Software Engineer</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="role" value="Data Scientist" id="role2">
+                    <label class="form-check-label" for="role2">Data Scientist</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="role" value="Product Manager" id="role3">
+                    <label class="form-check-label" for="role3">Product Manager</label>
+                </div>
+            </div>
 
-      <button type="submit" class="btn btn-primary w-100">Analyze Resume</button>
-    </form>
+            <!-- Company Choice -->
+            <div class="mb-4">
+                <label class="form-label fw-bold">Which company?</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="company" value="Google" id="company1" required>
+                    <label class="form-check-label" for="company1">Google</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="company" value="Amazon" id="company2">
+                    <label class="form-check-label" for="company2">Amazon</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="company" value="Microsoft" id="company3">
+                    <label class="form-check-label" for="company3">Microsoft</label>
+                </div>
+            </div>
 
-    {% if role %}
-    <div class="mt-4 p-3 border rounded bg-light">
-      <h4>✨ Analysis Result</h4>
-      <p><strong>Role:</strong> {{ role }} — <span class="text-primary">{{ role_score }}%</span></p>
-      <p><strong>Company:</strong> {{ company }} — <span class="text-success">{{ company_score }}%</span></p>
-      <p><strong>Overall Score:</strong> <span class="text-danger">{{ overall_score }}%</span></p>
+            <!-- Resume Upload -->
+            <div class="mb-4">
+                <label class="form-label fw-bold">Upload your resume</label>
+                <input class="form-control" type="file" name="resume" accept=".pdf" required>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary w-100">Check Resume</button>
+        </form>
     </div>
-    {% endif %}
-  </div>
 </div>
 {% endblock %}
