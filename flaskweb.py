@@ -5,6 +5,7 @@ from flask import Flask, render_template, url_for, flash, redirect, session, req
 from forms import RegistrationForm, LoginForm
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
+from werkzeug.utils import secure_filename
 
 # ------------------- LOGGING -------------------
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
@@ -37,6 +38,7 @@ bcrypt = Bcrypt(app)
 
 # ------------------- RESUME CHECKER ML SETUP -------------------
 import pdfplumber
+import docx
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -63,15 +65,29 @@ company_skills = {
 
 overall_text = " ".join(list(role_skills.values()) + list(company_skills.values()))
 
-def extract_text_from_pdf(pdf_path):
-    """Extract raw text from PDF resumes"""
+# ------------------- UPLOAD SETTINGS -------------------
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB limit
+ALLOWED_EXTENSIONS = {'pdf', 'docx'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# ------------------- HELPER FUNCTIONS -------------------
+def extract_text_from_pdf_safe(file_path):
+    """Extract text page by page to reduce memory usage"""
     text = ""
-    with pdfplumber.open(pdf_path) as pdf:
+    with pdfplumber.open(file_path) as pdf:
         for page in pdf.pages:
             content = page.extract_text()
             if content:
                 text += content.lower() + " "
     return text
+
+def extract_text_from_docx_safe(file_path):
+    """Extract text from DOCX safely"""
+    doc = docx.Document(file_path)
+    return " ".join([para.text.lower() for para in doc.paragraphs])
 
 def calculate_similarity(resume_text, reference_text):
     """Return similarity score between resume and reference skills"""
@@ -158,6 +174,7 @@ def self_confidence():
 def company_specific():
     return render_template("company_specific.html", show_sidebar=True)
 
+# ------------------- UPDATED RESUME CHECKER -------------------
 @app.route("/resume_checker", methods=["GET", "POST"])
 def resume_checker():
     if request.method == "POST":
@@ -165,26 +182,43 @@ def resume_checker():
         company = request.form.get("company")
         file = request.files.get("resume")
 
-        if not file:
-            return render_template("resume_checker.html", error="Please upload a resume")
+        if not file or not allowed_file(file.filename):
+            return render_template("resume_checker.html", error="Please upload a PDF or DOCX file under 5 MB")
 
-        file_path = "temp_resume.pdf"
-        file.save(file_path)
-        resume_text = extract_text_from_pdf(file_path)
-        os.remove(file_path)
+        filename = secure_filename(file.filename)
+        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        file.save(save_path)
 
-        role_score = calculate_similarity(resume_text, role_skills.get(role, ""))
-        company_score = calculate_similarity(resume_text, company_skills.get(company, ""))
-        overall_score = calculate_similarity(resume_text, overall_text)
+        try:
+            # Extract text safely
+            if filename.endswith(".pdf"):
+                resume_text = extract_text_from_pdf_safe(save_path)
+            else:
+                resume_text = extract_text_from_docx_safe(save_path)
 
-        return render_template(
-            "resume_checker.html",
-            role=role,
-            company=company,
-            role_score=role_score,
-            company_score=company_score,
-            overall_score=overall_score,
-        )
+            # Calculate similarity scores
+            role_score = calculate_similarity(resume_text, role_skills.get(role, ""))
+            company_score = calculate_similarity(resume_text, company_skills.get(company, ""))
+            overall_score = calculate_similarity(resume_text, overall_text)
+
+            # Clean up uploaded file
+            os.remove(save_path)
+
+            return render_template(
+                "resume_checker.html",
+                role=role,
+                company=company,
+                role_score=role_score,
+                company_score=company_score,
+                overall_score=overall_score,
+            )
+
+        except Exception as e:
+            # Ensure the file is deleted even if something goes wrong
+            if os.path.exists(save_path):
+                os.remove(save_path)
+            return render_template("resume_checker.html", error=f"Error processing file: {str(e)}")
 
     # GET request → show form
     return render_template("resume_checker.html")
@@ -213,4 +247,3 @@ def save_results():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
