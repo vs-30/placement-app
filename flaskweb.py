@@ -37,7 +37,7 @@ app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev_secret_key")
 bcrypt = Bcrypt(app)
 
 # ------------------- RESUME CHECKER ML SETUP -------------------
-import pdfplumber
+import fitz  # PyMuPDF (fast + memory efficient)
 import docx
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -75,11 +75,11 @@ def allowed_file(filename):
 
 # ------------------- HELPER FUNCTIONS -------------------
 def extract_text_from_pdf_safe(file_path):
-    """Extract text page by page to reduce memory usage"""
+    """Extract text using PyMuPDF (fast, low memory)"""
     text = ""
-    with pdfplumber.open(file_path) as pdf:
-        for page in pdf.pages:
-            content = page.extract_text()
+    with fitz.open(file_path) as doc:
+        for page in doc:
+            content = page.get_text("text")
             if content:
                 text += content.lower() + " "
     return text

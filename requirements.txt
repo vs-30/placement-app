@@ -11,3 +11,4 @@ Werkzeug==2.2.3
 pdfplumber
 scikit-learn
 python-docx
+pymupdf
