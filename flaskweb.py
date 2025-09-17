@@ -231,10 +231,6 @@ def save_results():
     return jsonify({"status":"success"})
 
 
-@app.route('/role_quiz')
-def role_quiz():
-    return render_template("quiz.html")  # quiz.html contains the role questions
-
 @app.route("/roadmap")
 def roadmap():
     return render_template("roadmap.html", show_sidebar=True)
