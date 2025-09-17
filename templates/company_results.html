@@ -1,5 +1,27 @@
 {% extends "layout.html" %}
 {% block content %}
+<style>
+  .result-card {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 15px;
+  }
+  .result-company {
+    font-weight: 600;
+    color: #333;
+    font-size: 18px;
+  }
+  .result-score {
+    background: #6c5ce7;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-weight: bold;
+  }
+</style>
+
 <div class="container mt-5">
   <div class="card shadow-lg rounded-4 p-4">
     <h2 class="mb-4">🏢 Your Ideal Company Match</h2>
@@ -9,17 +31,16 @@
 
     <!-- Scores breakdown -->
     <p class="mt-3">Based on your answers, here’s how well you align with each company:</p>
-    <ul class="list-group mb-3">
-      {% for comp, score in scores.items() %}
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-          {{ comp }}
-          <span class="badge bg-info text-dark">{{ score }}</span>
-        </li>
-      {% endfor %}
-    </ul>
+
+    {% for comp, score in scores.items() %}
+      <div class="result-card d-flex justify-content-between align-items-center">
+        <span class="result-company">{{ comp }}</span>
+        <span class="result-score">{{ score }}</span>
+      </div>
+    {% endfor %}
 
     <!-- Back button -->
-    <a href="{{ url_for('quiz_home') }}" class="btn btn-outline-primary">🔙 Back to Quiz Home</a>
+    <a href="{{ url_for('quiz_home') }}" class="btn btn-outline-primary mt-3">🔙 Back to Quiz Home</a>
   </div>
 </div>
 {% endblock %}
