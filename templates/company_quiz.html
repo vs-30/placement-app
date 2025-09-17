@@ -1,61 +1,92 @@
 {% extends "layout.html" %}
-{% block content %}
-<style>
-  .question-card {
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    padding: 20px;
-    margin-bottom: 20px;
-  }
-  .question-title {
-    font-weight: bold;
-    font-size: 18px;
-    margin-bottom: 10px;
-    color: #333;
-  }
-  .choices {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .choice label {
-    cursor: pointer;
-    font-size: 15px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    transition: background 0.2s;
-  }
-  .choice input[type="radio"] {
-    margin-right: 8px;
-  }
-  .choice:hover {
-    background: #f0f0f0;
-  }
-  button {
-    margin-top: 20px;
-    padding: 12px 20px;
-    background: #0984e3;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 16px;
-  }
-</style>
 
-<form method="POST" action="{{ url_for('company_quiz') }}">
+{% block content %}
+<form id="companyQuizForm">
   <!-- Q1 -->
   <div class="question-card">
     <div class="question-title">1. Work Style</div>
     <div class="choices">
-      <label class="choice"><input type="radio" name="work_style" value="A" required> Product-based companies</label>
-      <label class="choice"><input type="radio" name="work_style" value="B"> Service-based IT</label>
-      <label class="choice"><input type="radio" name="work_style" value="C"> Finance-focused</label>
-      <label class="choice"><input type="radio" name="work_style" value="D"> Consulting / Healthcare</label>
+      <label class="choice"><input type="radio" name="q1" value="A" required> Product-based companies</label>
+      <label class="choice"><input type="radio" name="q1" value="B"> Service-based IT</label>
+      <label class="choice"><input type="radio" name="q1" value="C"> Finance-focused</label>
+      <label class="choice"><input type="radio" name="q1" value="D"> Consulting / Healthcare</label>
     </div>
   </div>
-  <!-- Q2–Q6 (similar structure, keep as in your code) -->
-  <button type="submit">Submit Quiz</button>
+
+  <!-- Q2 -->
+  <div class="question-card">
+    <div class="question-title">2. Team Role Preference</div>
+    <div class="choices">
+      <label class="choice"><input type="radio" name="q2" value="A" required> Leading a team</label>
+      <label class="choice"><input type="radio" name="q2" value="B"> Individual contributor</label>
+      <label class="choice"><input type="radio" name="q2" value="C"> Data analysis / research</label>
+      <label class="choice"><input type="radio" name="q2" value="D"> Client-facing work</label>
+    </div>
+  </div>
+
+  <!-- Q3 -->
+  <div class="question-card">
+    <div class="question-title">3. Work Environment</div>
+    <div class="choices">
+      <label class="choice"><input type="radio" name="q3" value="A" required> Innovative / Product-oriented</label>
+      <label class="choice"><input type="radio" name="q3" value="B"> Structured / Process-driven</label>
+      <label class="choice"><input type="radio" name="q3" value="C"> Research & analytics heavy</label>
+      <label class="choice"><input type="radio" name="q3" value="D"> Client service focused</label>
+    </div>
+  </div>
+
+  <!-- Q4 -->
+  <div class="question-card">
+    <div class="question-title">4. Technical Focus</div>
+    <div class="choices">
+      <label class="choice"><input type="radio" name="q4" value="A" required> Coding & product development</label>
+      <label class="choice"><input type="radio" name="q4" value="B"> Testing & QA</label>
+      <label class="choice"><input type="radio" name="q4" value="C"> Data management & analysis</label>
+      <label class="choice"><input type="radio" name="q4" value="D"> System design / client solutions</label>
+    </div>
+  </div>
+
+  <!-- Q5 -->
+  <div class="question-card">
+    <div class="question-title">5. Preferred Technologies</div>
+    <div class="choices">
+      <label class="choice"><input type="radio" name="q5" value="A" required> Full-stack development</label>
+      <label class="choice"><input type="radio" name="q5" value="B"> Automation / Testing tools</label>
+      <label class="choice"><input type="radio" name="q5" value="C"> Databases & BI tools</label>
+      <label class="choice"><input type="radio" name="q5" value="D"> AI / Machine Learning</label>
+    </div>
+  </div>
+
+  <!-- Q6 -->
+  <div class="question-card">
+    <div class="question-title">6. Career Goal</div>
+    <div class="choices">
+      <label class="choice"><input type="radio" name="q6" value="A" required> Become a top developer in product firms</label>
+      <label class="choice"><input type="radio" name="q6" value="B"> Excel in service delivery / testing</label>
+      <label class="choice"><input type="radio" name="q6" value="C"> Specialize in data & analytics</label>
+      <label class="choice"><input type="radio" name="q6" value="D"> Lead AI/ML projects for clients</label>
+    </div>
+  </div>
+
+  <button type="submit" id="submitBtn">Submit Quiz</button>
 </form>
+
+<script>
+document.getElementById("companyQuizForm").addEventListener("submit", async function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  const answers = {};
+  formData.forEach((value, key) => answers[key] = value);
+
+  // Send to backend
+  const response = await fetch("/save_results", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answers })
+  });
+
+  if(response.ok) alert("Quiz submitted successfully!");
+  else alert("Error submitting quiz.");
+});
+</script>
 {% endblock %}
