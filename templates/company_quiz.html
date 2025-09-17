@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+  .question-card {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .question-title {
+    font-weight: bold;
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: #333;
+  }
+  .choices {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .choice label {
+    cursor: pointer;
+    font-size: 15px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: background 0.2s;
+  }
+  .choice input[type="radio"] {
+    margin-right: 8px;
+  }
+  .choice:hover {
+    background: #f0f0f0;
+  }
+  button {
+    margin-top: 20px;
+    padding: 12px 20px;
+    background: #0984e3;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+</style>
+
+<form method="POST" action="{{ url_for('company_quiz') }}">
+  <!-- Q1 -->
+  <div class="question-card">
+    <div class="question-title">1. Work Style</div>
+    <div class="choices">
+      <label class="choice"><input type="radio" name="work_style" value="A" required> Product-based companies</label>
+      <label class="choice"><input type="radio" name="work_style" value="B"> Service-based IT</label>
+      <label class="choice"><input type="radio" name="work_style" value="C"> Finance-focused</label>
+      <label class="choice"><input type="radio" name="work_style" value="D"> Consulting / Healthcare</label>
+    </div>
+  </div>
+  <!-- Q2–Q6 (similar structure, keep as in your code) -->
+  <button type="submit">Submit Quiz</button>
+</form>
+{% endblock %}

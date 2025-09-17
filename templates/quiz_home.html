@@ -1,0 +1,13 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-5">
+  <div class="card shadow-lg rounded-4 p-4">
+    <h2 class="mb-4">Choose Your Quiz</h2>
+    <p>Would you like to get recommendations for a <b>Company</b> or a <b>Role</b>?</p>
+    <div class="d-flex gap-3 mt-3">
+      <a href="{{ url_for('company_quiz') }}" class="btn btn-primary">Company Quiz</a>
+      <a href="{{ url_for('role_quiz') }}" class="btn btn-secondary">Role Quiz</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
