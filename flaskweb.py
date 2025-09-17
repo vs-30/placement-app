@@ -1,7 +1,7 @@
 import sys
 import logging
 import os
-from flask import Flask, render_template, url_for, flash, redirect, request, jsonify
+from flask import Flask, render_template, url_for, flash, redirect, request, jsonify, session
 from forms import RegistrationForm, LoginForm
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
@@ -171,8 +171,20 @@ def company_quiz():
             "salary": request.form.get("salary")
         }
         company, scores = recommend_company(answers)
-        return render_template("company_result.html", company=company, scores=scores)
+
+        # Save results in session
+        session["last_company"] = company
+        session["last_scores"] = scores
+
+        return redirect(url_for("company_results"))
+
     return render_template("company_quiz.html", show_sidebar=True)
+
+@app.route("/quiz/company/results")
+def company_results():
+    company = session.get("last_company")
+    scores = session.get("last_scores", {})
+    return render_template("company_results.html", company=company, scores=scores, show_sidebar=True)
 
 @app.route("/quiz/role")
 def role_quiz():
@@ -229,7 +241,6 @@ def save_results():
         upsert=True
     )
     return jsonify({"status":"success"})
-
 
 @app.route("/roadmap")
 def roadmap():
