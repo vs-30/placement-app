@@ -213,19 +213,23 @@ def resume_checker():
 @app.route("/save_results", methods=["POST"])
 def save_results():
     data = request.json
-    user_id = data.get("user_id")
+    user_email = data.get("email")
+    if not user_email:
+        return jsonify({"status":"error", "message":"No user email provided"}), 400
+
     users.update_one(
-        {"user_id": user_id},
+        {"email": user_email},
         {"$set": {
             "answers": data.get("answers"),
             "preferred_role": data.get("preferred"),
             "suggested_role": data.get("suggested"),
             "final_message": data.get("finalMessage"),
-            "dream_company": data.get("dreamCompany", "Unknown")
+            "dream_company": data.get("dreamCompany","Unknown")
         }},
         upsert=True
     )
     return jsonify({"status":"success"})
+
 
 @app.route("/roadmap")
 def roadmap():
