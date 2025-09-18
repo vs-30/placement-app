@@ -10,10 +10,15 @@
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* Logo and title */
+        /* Push content below the existing nav/header */
+        .page-content {
+            padding-top: 100px; /* Adjust based on your top bar height */
+        }
+
+        /* Logo and company name */
         .logo-container {
             text-align: center;
-            margin-top: 100px; /* below top bar */
+            margin-bottom: 50px;
         }
         .logo-container img {
             width: 150px;
@@ -28,9 +33,10 @@
         /* Content section */
         .content-section {
             max-width: 900px;
-            margin: 50px auto;
+            margin: 0 auto 50px auto;
             font-size: 1.1rem;
             line-height: 1.8;
+            color: #212529; /* standard text color on bg */
         }
         .content-section h2 {
             text-align: center;
@@ -49,60 +55,44 @@
             font-weight: bold;
             color: #0d6efd;
         }
-        .cta {
-            text-align: center;
-            margin-top: 30px;
-            font-size: 1.2rem;
-        }
-        .cta a {
-            text-decoration: none;
-            color: white;
-            background-color: #0d6efd;
-            padding: 10px 20px;
-            border-radius: 5px;
-        }
-        .cta a:hover {
-            background-color: #084298;
-        }
     </style>
 </head>
 <body>
-    <!-- Logo and Company Name -->
-    <div class="logo-container">
-        <img src="{{ url_for('static', filename='logo.png') }}" alt="Website Logo">
-        <h1>Your Website Name</h1>
-    </div>
+    <div class="page-content">
+        <!-- Logo and Company Name -->
+        <div class="logo-container">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Website Logo">
+            <h1>Your Website Name</h1>
+        </div>
 
-    <!-- Home Page Content -->
-    <div class="content-section">
-        <h2>Welcome to <span class="highlight">Your Website Name</span> – Your Career Success Partner</h2>
+        <!-- Home Page Content -->
+        <div class="content-section">
+            <h2>Welcome to <span class="highlight">Your Website Name</span> – Your Career Success Partner</h2>
 
-        <p>Finding the right company and preparing for placements can be challenging. That’s why we’ve created this platform to guide students of all years step by step, from skill-building to final interviews.</p>
+            <p>Finding the right company and preparing for placements can be challenging. That’s why we’ve created this platform to guide students of all years step by step, from skill-building to final interviews.</p>
 
-        <p>Here, you’ll find everything you need to become placement-ready:</p>
+            <p>Here, you’ll find everything you need to become placement-ready:</p>
 
-        <ul>
-            <li><span class="highlight">Quizzes & Practice Tests</span> to strengthen aptitude and technical skills.</li>
-            <li><span class="highlight">Company-Specific Guidance</span> to prepare you with the right strategies for each recruiter.</li>
-            <li><span class="highlight">Roadmaps & Courses</span> designed to help you build skills that top companies are looking for.</li>
-            <li><span class="highlight">Resume Checker</span> to make your CV stand out from the crowd.</li>
-            <li><span class="highlight">Self-Confidence Detector</span> to boost your confidence and communication skills.</li>
-        </ul>
+            <ul>
+                <li><span class="highlight">Quizzes & Practice Tests</span> to strengthen aptitude and technical skills.</li>
+                <li><span class="highlight">Company-Specific Guidance</span> to prepare you with the right strategies for each recruiter.</li>
+                <li><span class="highlight">Roadmaps & Courses</span> designed to help you build skills that top companies are looking for.</li>
+                <li><span class="highlight">Resume Checker</span> to make your CV stand out from the crowd.</li>
+                <li><span class="highlight">Self-Confidence Detector</span> to boost your confidence and communication skills.</li>
+            </ul>
 
-        <p>Your journey is unique, so we’ve built a personalized dashboard that updates automatically:</p>
+            <p>Your journey is unique, so we’ve built a personalized dashboard that updates automatically:</p>
 
-        <ul>
-            <li>View your last visited and completed courses.</li>
-            <li>Track your eligibility status for different companies.</li>
-            <li>Monitor your overall progress toward placement readiness.</li>
-        </ul>
+            <ul>
+                <li>View your last visited and completed courses.</li>
+                <li>Track your eligibility status for different companies.</li>
+                <li>Monitor your overall progress toward placement readiness.</li>
+            </ul>
 
-        <p>Start your journey today and take one step closer to your dream company!</p>
-
-        <div class="cta">
-            <a href="{{ url_for('login') }}">👉 Login or Register now</a> to unlock your personalized career roadmap.
+            <p>Start your journey today and take one step closer to your dream company!</p>
         </div>
     </div>
 </body>
 </html>
 {% endblock %}
+
