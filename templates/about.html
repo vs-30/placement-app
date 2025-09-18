@@ -1,38 +1,55 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="container mt-5 d-flex flex-column align-items-center" style="max-width: 900px; margin: auto; text-align: center; line-height: 1.7; font-size: 1.2rem;">
 
-  <!-- Main Heading -->
-  <h1 class="mb-4" style="font-size: 2.5rem; font-weight: 700;">About CareerStitch</h1>
+<!-- Spacer to prevent header/sidebar overlap -->
+<div class="header-space" style="height:70px;"></div>
 
-  <!-- Intro Paragraph -->
-  <p class="mb-5">
-    At CareerStitch, our mission is simple: to empower students of all academic years with the right tools, resources, and guidance to get placed in the companies they aspire to join.
-  </p>
+<div class="container d-flex flex-column align-items-center">
+  <!-- Flashcard-style wrapper -->
+  <div class="flashcard p-4 mb-5" style="max-width: 900px; width: 100%; text-align: center; line-height: 1.7; font-size: 1.2rem;">
 
-  <!-- What We Offer Section -->
-  <h2 class="mb-3" style="font-size: 1.8rem; font-weight: 600;">What We Offer</h2>
-  <ul class="mb-5" style="list-style: none; padding-left: 0; text-align: center;">
-    <li class="mb-2">📘 <b>Interactive Quizzes:</b> Sharpen your aptitude, coding, and reasoning skills.</li>
-    <li class="mb-2">🛣️ <b>Roadmaps:</b> Step-by-step guides to prepare for specific roles and companies.</li>
-    <li class="mb-2">🎓 <b>Courses & Learning Modules:</b> Learn the right skills at your own pace.</li>
-    <li class="mb-2">📝 <b>Resume Checker:</b> Polish your resume to make it recruiter-ready.</li>
-    <li class="mb-2">💡 <b>Self-Confidence Detector:</b> Practice and improve your confidence before interviews.</li>
-    <li class="mb-2">🏢 <b>Company-Specific Prep:</b> Tailored tips, resources, and strategies for each company.</li>
-  </ul>
+    <!-- Main Heading -->
+    <h1 class="mb-4" style="font-size: 2.5rem; font-weight: 700;">About CareerStitch</h1>
 
-  <!-- Why Choose Us Section -->
-  <h2 class="mb-3" style="font-size: 1.8rem; font-weight: 600;">Why Choose CareerStitch?</h2>
-  <ul class="mb-5" style="list-style: none; padding-left: 0; text-align: center;">
-    <li class="mb-2">🎓 Resources for every year of study – whether first year or final year.</li>
-    <li class="mb-2">📊 Personalized dashboard to track your progress and eligibility.</li>
-    <li class="mb-2">🎯 Placement-focused approach – everything designed to help you get placed.</li>
-  </ul>
+    <!-- Intro Paragraph -->
+    <p class="mb-5">
+      At CareerStitch, our mission is simple: to empower students of all academic years with the right tools, resources, and guidance to get placed in the companies they aspire to join.
+    </p>
 
-  <!-- Closing Note -->
-  <p style="font-size: 1.25rem;">
-    CareerStitch is more than a platform – we are your career growth partner. With the right mix of preparation, practice, and confidence, we’ll help you step into the professional world with success. 🚀
-  </p>
+    <!-- What We Offer Section -->
+    <h2 class="mb-3" style="font-size: 1.8rem; font-weight: 600;">What We Offer</h2>
+    <ul class="mb-5" style="list-style: none; padding-left: 0; text-align: center;">
+      <li class="mb-2">📘 <b>Interactive Quizzes:</b> Sharpen your aptitude, coding, and reasoning skills.</li>
+      <li class="mb-2">🛣️ <b>Roadmaps:</b> Step-by-step guides to prepare for specific roles and companies.</li>
+      <li class="mb-2">🎓 <b>Courses & Learning Modules:</b> Learn the right skills at your own pace.</li>
+      <li class="mb-2">📝 <b>Resume Checker:</b> Polish your resume to make it recruiter-ready.</li>
+      <li class="mb-2">💡 <b>Self-Confidence Detector:</b> Practice and improve your confidence before interviews.</li>
+      <li class="mb-2">🏢 <b>Company-Specific Prep:</b> Tailored tips, resources, and strategies for each company.</li>
+    </ul>
 
+    <!-- Why Choose Us Section -->
+    <h2 class="mb-3" style="font-size: 1.8rem; font-weight: 600;">Why Choose CareerStitch?</h2>
+    <ul class="mb-5" style="list-style: none; padding-left: 0; text-align: center;">
+      <li class="mb-2">🎓 Resources for every year of study – whether first year or final year.</li>
+      <li class="mb-2">📊 Personalized dashboard to track your progress and eligibility.</li>
+      <li class="mb-2">🎯 Placement-focused approach – everything designed to help you get placed.</li>
+    </ul>
+
+    <!-- Closing Note -->
+    <p style="font-size: 1.25rem;">
+      CareerStitch is more than a platform – we are your career growth partner. With the right mix of preparation, practice, and confidence, we’ll help you step into the professional world with success. 🚀
+    </p>
+
+  </div>
 </div>
+
+<style>
+  /* Flashcard style */
+  .flashcard {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+</style>
+
 {% endblock %}
