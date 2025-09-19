@@ -134,12 +134,13 @@ def about():
 def login():
     form = LoginForm()
     if form.validate_on_submit():
-        user = users.find_one({"email": form.email.data})
+        user = users.find_one({"username": form.username.data})  # Use username, not email
         if user and bcrypt.check_password_hash(user["password"], form.password.data):
             flash("Login successful!", "success")
             return redirect(url_for("home"))
-        flash("Invalid email or password", "danger")
+        flash("Invalid username or password", "danger")
     return render_template("login.html", form=form)
+
 
 @app.route("/register", methods=["GET","POST"])
 def register():
