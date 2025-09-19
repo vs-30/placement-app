@@ -1,9 +1,9 @@
 /* Background */
 /* Background */
 body {
-  background: linear-gradient(135deg, #c1f8fb ,  #c1f8fb #f4f4f4);
-  background-size: 200% 200%;
-  background-position: 25% 50%; /* adjust this to "lock in" the pink top-left */
+  background: linear-gradient(135deg, #44acb1, #ffffff, #46adb3);
+  background-size: cover;
+  background-position: center;
   color: #333333;
   margin-top: 5rem;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
