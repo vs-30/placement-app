@@ -1,7 +1,7 @@
 /* Background */
 /* Background */
 body {
-  background: linear-gradient(135deg, #a8edea, #f8d0ec, #a6c1ee, #f8d4de);
+  background: linear-gradient(135deg, #c1f8fb ,  #c1f8fb #f4f4f4);
   background-size: 200% 200%;
   background-position: 25% 50%; /* adjust this to "lock in" the pink top-left */
   color: #333333;
