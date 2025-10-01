@@ -96,7 +96,7 @@ def ingest_company_files():
 
                     batch = []
                     for row in reader:
-                        # Clean keys: lowercase and strip spaces
+                        # Normalize CSV headers: lowercase, strip spaces
                         row = {k.strip().lower(): v for k, v in row.items()}
 
                         slug = row.get("slug")
@@ -104,14 +104,15 @@ def ingest_company_files():
                             # Skip rows without slug
                             continue
 
+                        # Check if already exists
                         if not problems.find_one({"slug": slug}):
                             problem_doc = {
-                                "title": row.get("title"),
+                                "title": row.get("title") or "",
                                 "slug": slug,
-                                "link": row.get("link"),
-                                "difficulty": row.get("difficulty"),
-                                "tags": row.get("tags").split(",") if row.get("tags") else [],
-                                "company_tags": [company],
+                                "link": row.get("link") or "",
+                                "difficulty": row.get("difficulty") or "",
+                                "tags": [tag.strip() for tag in row.get("tags","").split(",") if tag.strip()],
+                                "company_tags": [company.title()],  # Clean casing
                                 "source": "github"
                             }
                             batch.append(problem_doc)
@@ -123,7 +124,7 @@ def ingest_company_files():
                             print(f"Inserted batch of 50 for {company}")
                             batch = []
 
-                    # Insert any remaining in batch
+                    # Insert any remaining
                     if batch:
                         problems.insert_many(batch)
                         print(f"Inserted remaining {len(batch)} for {company}")
@@ -135,7 +136,6 @@ def ingest_company_files():
 
     except Exception as e:
         print("❌ Error during ingestion:", e)
-
 
 
 # ------------------- RESUME CHECKER -------------------
