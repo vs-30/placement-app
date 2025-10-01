@@ -82,43 +82,49 @@ def ingest_company_files():
     total_inserted = 0
     try:
         company_files = get_company_csv_files(TARGET_COMPANIES)
+        print(f"✅ Found {sum(len(f) for f in company_files.values())} files to ingest")
 
         for company, files in company_files.items():
             for url in files:
-                headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-                r = requests.get(url, headers=headers)
-                r.raise_for_status()
-                f = StringIO(r.text)
-                reader = csv.DictReader(f)
+                try:
+                    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+                    r = requests.get(url, headers=headers, timeout=10)
+                    r.raise_for_status()
+                    f = StringIO(r.text)
+                    reader = csv.DictReader(f)
 
-                batch = []
-                for row in reader:
-                    if not problems.find_one({"slug": row.get("Slug")}):
-                        problem_doc = {
-                            "title": row.get("Title"),
-                            "slug": row.get("Slug"),
-                            "link": row.get("Link"),
-                            "difficulty": row.get("Difficulty"),
-                            "tags": row.get("Tags").split(",") if row.get("Tags") else [],
-                            "company_tags": [company],
-                            "source": "github"
-                        }
-                        batch.append(problem_doc)
-                        total_inserted += 1
+                    batch = []
+                    for row in reader:
+                        if not problems.find_one({"slug": row.get("Slug")}):
+                            problem_doc = {
+                                "title": row.get("Title"),
+                                "slug": row.get("Slug"),
+                                "link": row.get("Link"),
+                                "difficulty": row.get("Difficulty"),
+                                "tags": row.get("Tags").split(",") if row.get("Tags") else [],
+                                "company_tags": [company],
+                                "source": "github"
+                            }
+                            batch.append(problem_doc)
+                            total_inserted += 1
 
-                        # Insert in batches of 50
                         if len(batch) >= 50:
                             problems.insert_many(batch)
+                            print(f"Inserted batch of 50 for {company}")
                             batch = []
 
-                # Insert remaining
-                if batch:
-                    problems.insert_many(batch)
+                    if batch:
+                        problems.insert_many(batch)
+                        print(f"Inserted remaining {len(batch)} for {company}")
+
+                except Exception as inner_e:
+                    print(f"❌ Error fetching/inserting for {company} file {url}: {inner_e}")
 
         print(f"✅ Completed ingestion. Total inserted: {total_inserted}")
 
     except Exception as e:
         print("❌ Error during ingestion:", e)
+
 
 # ------------------- RESUME CHECKER -------------------
 role_skills = {
@@ -200,10 +206,8 @@ def home():
 
 @app.route("/ingest_companies_dynamic")
 def ingest_companies_dynamic():
-    # Start ingestion in a background thread
-    thread = threading.Thread(target=ingest_company_files)
+    thread = threading.Thread(target=ingest_company_files, daemon=True)
     thread.start()
-
     return jsonify({
         "status": "success",
         "message": "Ingestion started in background. Check logs for progress."
