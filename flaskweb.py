@@ -1,6 +1,7 @@
 import sys
 import logging
 import os
+import requests
 from flask import Flask, render_template, url_for, flash, redirect, request, jsonify, session
 from forms import RegistrationForm, LoginForm
 from flask_bcrypt import Bcrypt
@@ -25,6 +26,8 @@ try:
     db = client["placementdb"]
     users = db["users"]
     results = db["results"]
+    problems=db["problems"]
+    problem_variants=db["problem_variants"]
 except Exception as e:
     print("❌ MongoDB connection failed:", e)
     users = None
@@ -140,6 +143,31 @@ def login():
             return redirect(url_for("home"))
         flash("Invalid username or password", "danger")
     return render_template("login.html", form=form)
+
+@app.route("/ingest_problems")
+def ingest_problems():
+    sample_problems = [
+        {
+            "title": "Two Sum",
+            "slug": "two-sum",
+            "link": "https://leetcode.com/problems/two-sum/",
+            "difficulty": "Easy",
+            "tags": ["Array", "Hash Table"],
+            "company_tags": ["Amazon", "Google"],
+            "source": "github"
+        },
+        {
+            "title": "Longest Substring Without Repeating Characters",
+            "slug": "longest-substring-without-repeating-characters",
+            "link": "https://leetcode.com/problems/longest-substring-without-repeating-characters/",
+            "difficulty": "Medium",
+            "tags": ["Hash Table", "String", "Sliding Window"],
+            "company_tags": ["Microsoft"],
+            "source": "github"
+        }
+    ]
+    inserted = problems.insert_many(sample_problems)
+    return jsonify({"status": "success", "inserted_ids": [str(i) for i in inserted.inserted_ids]})
 
 
 @app.route("/register", methods=["GET","POST"])
