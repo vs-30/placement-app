@@ -2,6 +2,9 @@ import sys
 import logging
 import os
 import requests
+import threading
+import csv
+from io import StringIO
 from flask import Flask, render_template, url_for, flash, redirect, request, jsonify, session
 from forms import RegistrationForm, LoginForm
 from flask_bcrypt import Bcrypt
@@ -72,6 +75,50 @@ def get_company_csv_files(target_companies):
             if company.lower().replace(" ", "") in name_lower and f["name"].endswith(".csv"):
                 company_files[company].append(f["download_url"])
     return company_files
+
+# ------------------- BACKGROUND CSV INGEST -------------------
+
+def ingest_company_files():
+    total_inserted = 0
+    try:
+        company_files = get_company_csv_files(TARGET_COMPANIES)
+
+        for company, files in company_files.items():
+            for url in files:
+                headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+                r = requests.get(url, headers=headers)
+                r.raise_for_status()
+                f = StringIO(r.text)
+                reader = csv.DictReader(f)
+
+                batch = []
+                for row in reader:
+                    if not problems.find_one({"slug": row.get("Slug")}):
+                        problem_doc = {
+                            "title": row.get("Title"),
+                            "slug": row.get("Slug"),
+                            "link": row.get("Link"),
+                            "difficulty": row.get("Difficulty"),
+                            "tags": row.get("Tags").split(",") if row.get("Tags") else [],
+                            "company_tags": [company],
+                            "source": "github"
+                        }
+                        batch.append(problem_doc)
+                        total_inserted += 1
+
+                        # Insert in batches of 50
+                        if len(batch) >= 50:
+                            problems.insert_many(batch)
+                            batch = []
+
+                # Insert remaining
+                if batch:
+                    problems.insert_many(batch)
+
+        print(f"✅ Completed ingestion. Total inserted: {total_inserted}")
+
+    except Exception as e:
+        print("❌ Error during ingestion:", e)
 
 # ------------------- RESUME CHECKER -------------------
 role_skills = {
@@ -153,38 +200,14 @@ def home():
 
 @app.route("/ingest_companies_dynamic")
 def ingest_companies_dynamic():
-    import csv
-    from io import StringIO
+    # Start ingestion in a background thread
+    thread = threading.Thread(target=ingest_company_files)
+    thread.start()
 
-    total_inserted = 0
-    try:
-        company_files = get_company_csv_files(TARGET_COMPANIES)
-
-        for company, files in company_files.items():
-            for url in files:
-                headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-                r = requests.get(url, headers=headers)
-                r.raise_for_status()
-                f = StringIO(r.text)
-                reader = csv.DictReader(f)
-                
-                for row in reader:
-                    if not problems.find_one({"slug": row.get("Slug")}):
-                        problem_doc = {
-                            "title": row.get("Title"),
-                            "slug": row.get("Slug"),
-                            "link": row.get("Link"),
-                            "difficulty": row.get("Difficulty"),
-                            "tags": row.get("Tags").split(",") if row.get("Tags") else [],
-                            "company_tags": [company],
-                            "source": "github"
-                        }
-                        problems.insert_one(problem_doc)
-                        total_inserted += 1
-
-        return jsonify({"status": "success", "inserted_count": total_inserted})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
+    return jsonify({
+        "status": "success",
+        "message": "Ingestion started in background. Check logs for progress."
+    })
 
 @app.route("/about")
 def about():
