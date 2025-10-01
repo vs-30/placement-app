@@ -7,13 +7,17 @@ from forms import RegistrationForm, LoginForm
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
 from werkzeug.utils import secure_filename
+import fitz  # PyMuPDF
+import docx
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # ------------------- LOGGING -------------------
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
 print("✅ Logging initialized")
 
 # ------------------- MONGO DB SETUP -------------------
-mongo_uri = os.getenv("MONGO_URI")  # set this in Render Environment
+mongo_uri = os.getenv("MONGO_URI")  # set in Render Environment
 try:
     client = MongoClient(
         mongo_uri,
@@ -26,12 +30,13 @@ try:
     db = client["placementdb"]
     users = db["users"]
     results = db["results"]
-    problems=db["problems"]
-    problem_variants=db["problem_variants"]
+    problems = db["problems"]
+    problem_variants = db["problem_variants"]
 except Exception as e:
     print("❌ MongoDB connection failed:", e)
     users = None
     results = None
+    problems = None
 
 # ------------------- FLASK SETUP -------------------
 app = Flask(__name__)
@@ -48,34 +53,27 @@ def allowed_file(filename):
 
 # ------------------- GITHUB CSV INGEST -------------------
 GITHUB_API_URL = "https://api.github.com/repos/krishnadey30/LeetCode-Questions-CompanyWise/contents/"
-
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")  # token from Render env
 TARGET_COMPANIES = [
     "AMAZON", "WELLS FARGO", "FIDELITY", "PAYPAL", "ROCHE",
     "DELOITTE", "TCS", "ACCENTURE", "WIPRO", "GOOGLE", "MICROSOFT"
 ]
 
 def get_company_csv_files(target_companies):
-    response = requests.get(GITHUB_API_URL)
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    response = requests.get(GITHUB_API_URL, headers=headers)
     response.raise_for_status()
     files = response.json()
 
     company_files = {company: [] for company in target_companies}
-    
     for f in files:
         name_lower = f["name"].lower()
         for company in target_companies:
             if company.lower().replace(" ", "") in name_lower and f["name"].endswith(".csv"):
                 company_files[company].append(f["download_url"])
-
     return company_files
 
-
 # ------------------- RESUME CHECKER -------------------
-import fitz  # PyMuPDF
-import docx
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-
 role_skills = {
     "Software Developer / Full Stack Developer": "java python c++ javascript react nodejs html css sql system design dsa",
     "Software Tester / QA Engineer": "manual testing automation selenium junit testng bug tracking quality assurance python java",
@@ -164,7 +162,8 @@ def ingest_companies_dynamic():
 
         for company, files in company_files.items():
             for url in files:
-                r = requests.get(url)
+                headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+                r = requests.get(url, headers=headers)
                 r.raise_for_status()
                 f = StringIO(r.text)
                 reader = csv.DictReader(f)
@@ -184,10 +183,8 @@ def ingest_companies_dynamic():
                         total_inserted += 1
 
         return jsonify({"status": "success", "inserted_count": total_inserted})
-
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
-
 
 @app.route("/about")
 def about():
