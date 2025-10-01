@@ -82,7 +82,8 @@ def ingest_company_files():
     total_inserted = 0
     try:
         company_files = get_company_csv_files(TARGET_COMPANIES)
-        print(f"✅ Found {sum(len(f) for f in company_files.values())} files to ingest")
+        total_files = sum(len(f) for f in company_files.values())
+        print(f"✅ Found {total_files} files to ingest")
 
         for company, files in company_files.items():
             for url in files:
@@ -95,24 +96,34 @@ def ingest_company_files():
 
                     batch = []
                     for row in reader:
-                        if not problems.find_one({"slug": row.get("Slug")}):
+                        # Clean keys: lowercase and strip spaces
+                        row = {k.strip().lower(): v for k, v in row.items()}
+
+                        slug = row.get("slug")
+                        if not slug:
+                            # Skip rows without slug
+                            continue
+
+                        if not problems.find_one({"slug": slug}):
                             problem_doc = {
-                                "title": row.get("Title"),
-                                "slug": row.get("Slug"),
-                                "link": row.get("Link"),
-                                "difficulty": row.get("Difficulty"),
-                                "tags": row.get("Tags").split(",") if row.get("Tags") else [],
+                                "title": row.get("title"),
+                                "slug": slug,
+                                "link": row.get("link"),
+                                "difficulty": row.get("difficulty"),
+                                "tags": row.get("tags").split(",") if row.get("tags") else [],
                                 "company_tags": [company],
                                 "source": "github"
                             }
                             batch.append(problem_doc)
                             total_inserted += 1
 
+                        # Insert in batches of 50
                         if len(batch) >= 50:
                             problems.insert_many(batch)
                             print(f"Inserted batch of 50 for {company}")
                             batch = []
 
+                    # Insert any remaining in batch
                     if batch:
                         problems.insert_many(batch)
                         print(f"Inserted remaining {len(batch)} for {company}")
@@ -124,6 +135,7 @@ def ingest_company_files():
 
     except Exception as e:
         print("❌ Error during ingestion:", e)
+
 
 
 # ------------------- RESUME CHECKER -------------------
