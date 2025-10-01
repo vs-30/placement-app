@@ -46,6 +46,30 @@ ALLOWED_EXTENSIONS = {'pdf', 'docx'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# ------------------- GITHUB CSV INGEST -------------------
+GITHUB_API_URL = "https://api.github.com/repos/krishnadey30/LeetCode-Questions-CompanyWise/contents/"
+
+TARGET_COMPANIES = [
+    "AMAZON", "WELLS FARGO", "FIDELITY", "PAYPAL", "ROCHE",
+    "DELOITTE", "TCS", "ACCENTURE", "WIPRO", "GOOGLE", "MICROSOFT"
+]
+
+def get_company_csv_files(target_companies):
+    response = requests.get(GITHUB_API_URL)
+    response.raise_for_status()
+    files = response.json()
+
+    company_files = {company: [] for company in target_companies}
+    
+    for f in files:
+        name_lower = f["name"].lower()
+        for company in target_companies:
+            if company.lower().replace(" ", "") in name_lower and f["name"].endswith(".csv"):
+                company_files[company].append(f["download_url"])
+
+    return company_files
+
+
 # ------------------- RESUME CHECKER -------------------
 import fitz  # PyMuPDF
 import docx
@@ -128,6 +152,42 @@ def recommend_company(answers):
 @app.route("/")
 def home():
     return render_template('home.html', show_sidebar=True)
+
+@app.route("/ingest_companies_dynamic")
+def ingest_companies_dynamic():
+    import csv
+    from io import StringIO
+
+    total_inserted = 0
+    try:
+        company_files = get_company_csv_files(TARGET_COMPANIES)
+
+        for company, files in company_files.items():
+            for url in files:
+                r = requests.get(url)
+                r.raise_for_status()
+                f = StringIO(r.text)
+                reader = csv.DictReader(f)
+                
+                for row in reader:
+                    if not problems.find_one({"slug": row.get("Slug")}):
+                        problem_doc = {
+                            "title": row.get("Title"),
+                            "slug": row.get("Slug"),
+                            "link": row.get("Link"),
+                            "difficulty": row.get("Difficulty"),
+                            "tags": row.get("Tags").split(",") if row.get("Tags") else [],
+                            "company_tags": [company],
+                            "source": "github"
+                        }
+                        problems.insert_one(problem_doc)
+                        total_inserted += 1
+
+        return jsonify({"status": "success", "inserted_count": total_inserted})
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
 
 @app.route("/about")
 def about():
