@@ -91,51 +91,64 @@ def ingest_company_files():
                     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
                     r = requests.get(url, headers=headers, timeout=10)
                     r.raise_for_status()
+                    print(f"\n📂 Fetching {url} for {company} ({len(r.text)} chars)")
                     f = StringIO(r.text)
                     reader = csv.DictReader(f)
 
+                    # Debug: print headers
+                    print("🔎 CSV Headers:", reader.fieldnames)
+
                     batch = []
-                    for row in reader:
+                    for i, row in enumerate(reader, start=1):
                         # Normalize CSV headers: lowercase, strip spaces
-                        row = {k.strip().lower(): v for k, v in row.items()}
+                        row = {k.strip().lower(): v.strip() if v else "" for k, v in row.items()}
 
                         slug = row.get("slug")
                         if not slug:
-                            # Skip rows without slug
+                            print(f"⚠️ Row {i} skipped (no slug): {row}")
                             continue
 
-                        # Check if already exists
-                        if not problems.find_one({"slug": slug}):
-                            problem_doc = {
-                                "title": row.get("title") or "",
-                                "slug": slug,
-                                "link": row.get("link") or "",
-                                "difficulty": row.get("difficulty") or "",
-                                "tags": [tag.strip() for tag in row.get("tags","").split(",") if tag.strip()],
-                                "company_tags": [company.title()],  # Clean casing
-                                "source": "github"
-                            }
-                            batch.append(problem_doc)
-                            total_inserted += 1
+                        # Debug first few rows
+                        if i <= 3:
+                            print(f"✅ Sample Row {i} -> slug={slug}, title={row.get('title')}")
+
+                        # Check if already exists in DB
+                        if problems.find_one({"slug": slug}):
+                            print(f"⏩ Skipped duplicate slug: {slug}")
+                            continue
+
+                        # Prepare doc
+                        problem_doc = {
+                            "title": row.get("title") or "",
+                            "slug": slug,
+                            "link": row.get("link") or "",
+                            "difficulty": row.get("difficulty") or "",
+                            "tags": [tag.strip() for tag in row.get("tags","").split(",") if tag.strip()],
+                            "company_tags": [company.title()],  # normalize casing
+                            "source": "github"
+                        }
+                        batch.append(problem_doc)
+                        total_inserted += 1
 
                         # Insert in batches of 50
                         if len(batch) >= 50:
                             problems.insert_many(batch)
-                            print(f"Inserted batch of 50 for {company}")
+                            print(f"💾 Inserted batch of 50 for {company}")
                             batch = []
 
                     # Insert any remaining
                     if batch:
                         problems.insert_many(batch)
-                        print(f"Inserted remaining {len(batch)} for {company}")
+                        print(f"💾 Inserted remaining {len(batch)} for {company}")
 
                 except Exception as inner_e:
                     print(f"❌ Error fetching/inserting for {company} file {url}: {inner_e}")
 
-        print(f"✅ Completed ingestion. Total inserted: {total_inserted}")
+        print(f"\n🎯 Completed ingestion. Total inserted: {total_inserted}")
 
     except Exception as e:
         print("❌ Error during ingestion:", e)
+
 
 
 # ------------------- RESUME CHECKER -------------------
