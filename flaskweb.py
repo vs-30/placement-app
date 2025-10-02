@@ -17,7 +17,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 # ------------------- LOGGING -------------------
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
-print("✅ Logging initialized")
+print("✅ Logging initialized", flush=True)
 
 # ------------------- MONGO DB SETUP -------------------
 mongo_uri = os.getenv("MONGO_URI")  # set in Render Environment
@@ -29,14 +29,14 @@ try:
         serverSelectionTimeoutMS=5000
     )
     client.server_info()
-    print("✅ MongoDB connection successful")
+    print("✅ MongoDB connection successful", flush=True)
     db = client["placementdb"]
     users = db["users"]
     results = db["results"]
     problems = db["problems"]
     problem_variants = db["problem_variants"]
 except Exception as e:
-    print("❌ MongoDB connection failed:", e)
+    print("❌ MongoDB connection failed:", e, flush=True)
     users = None
     results = None
     problems = None
@@ -51,8 +51,10 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'pdf', 'docx'}
 
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 # ------------------- GITHUB CSV INGEST -------------------
 GITHUB_API_URL = "https://api.github.com/repos/krishnadey30/LeetCode-Questions-CompanyWise/contents/"
@@ -62,9 +64,10 @@ TARGET_COMPANIES = [
     "DELOITTE", "TCS", "ACCENTURE", "WIPRO", "GOOGLE", "MICROSOFT"
 ]
 
+
 def get_company_csv_files(target_companies):
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    response = requests.get(GITHUB_API_URL, headers=headers)
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
+    response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
     response.raise_for_status()
     files = response.json()
 
@@ -75,6 +78,7 @@ def get_company_csv_files(target_companies):
             if company.lower().replace(" ", "") in name_lower and f["name"].endswith(".csv"):
                 company_files[company].append(f["download_url"])
     return company_files
+
 
 # ------------------- BACKGROUND CSV INGEST -------------------
 
@@ -91,8 +95,8 @@ def ingest_company_files():
             for url in files:
                 try:
                     print(f"🌐 Fetching file: {url}", flush=True)
-                    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-                    r = requests.get(url, headers=headers, timeout=10)
+                    headers = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
+                    r = requests.get(url, headers=headers, timeout=15)
                     r.raise_for_status()
                     print(f"✅ Downloaded {len(r.text)} chars from {url}", flush=True)
 
@@ -109,35 +113,54 @@ def ingest_company_files():
                         if row_count <= 3:  # print just first 3 rows for debug
                             print("🔎 Sample row:", row, flush=True)
 
-                        # Normalize keys
-                        row = {k.strip().lower(): v for k, v in row.items()}
+                        # Normalize keys and strip values
+                        row = {k.strip().lower(): (v.strip() if v is not None else "") for k, v in row.items()}
 
-                        slug = row.get("slug")
+                        # Derive link and slug
+                        link = (row.get("leetcode question link") or row.get("link") or "").strip()
+                        slug = ""
+                        if link and "leetcode.com/problems/" in link:
+                            # Extract slug after the problems/ prefix
+                            slug = link.split("leetcode.com/problems/")[1].strip().strip("/")
+                            # In case the link contains query params or trailing pieces, take first segment
+                            slug = slug.split("/")[0]
+                        else:
+                            # Fallback: use id or title to create a slug
+                            fallback = row.get("id") or row.get("title") or ""
+                            slug = str(fallback).strip().lower().replace(" ", "-")
+                            slug = "".join(ch for ch in slug if ch.isalnum() or ch == "-" )
+
                         if not slug:
-                            print("⚠️ Skipping row with missing slug:", row, flush=True)
+                            print("⚠️ Skipping row, no slug could be derived:", row, flush=True)
                             continue
 
-                        if not problems.find_one({"slug": slug}):
-                            problem_doc = {
-                                "title": row.get("title") or "",
-                                "slug": slug,
-                                "link": row.get("link") or "",
-                                "difficulty": row.get("difficulty") or "",
-                                "tags": [tag.strip() for tag in row.get("tags", "").split(",") if tag.strip()],
-                                "company_tags": [company.title()],
-                                "source": "github"
-                            }
-                            batch.append(problem_doc)
-                            total_inserted += 1
+                        # Check duplicate by slug
+                        if problems and problems.find_one({"slug": slug}):
+                            print(f"⏩ Skipped duplicate slug: {slug}", flush=True)
+                            continue
+
+                        problem_doc = {
+                            "title": row.get("title") or "",
+                            "slug": slug,
+                            "link": link or "",
+                            "difficulty": row.get("difficulty") or "",
+                            "tags": [tag.strip() for tag in (row.get("tags") or "").split(",") if tag.strip()],
+                            "company_tags": [company.title()],
+                            "source": "github"
+                        }
+                        batch.append(problem_doc)
+                        total_inserted += 1
 
                         if len(batch) >= 50:
-                            problems.insert_many(batch)
+                            if problems:
+                                problems.insert_many(batch)
                             print(f"📥 Inserted batch of 50 for {company}", flush=True)
                             batch = []
 
                     # Final insert
                     if batch:
-                        problems.insert_many(batch)
+                        if problems:
+                            problems.insert_many(batch)
                         print(f"📥 Inserted remaining {len(batch)} for {company}", flush=True)
 
                     print(f"✅ Completed file {url}, processed {row_count} rows", flush=True)
@@ -173,6 +196,7 @@ company_skills = {
 
 overall_text = " ".join(list(role_skills.values()) + list(company_skills.values()))
 
+
 def extract_text_from_pdf_safe(file_path):
     text = ""
     with fitz.open(file_path) as doc:
@@ -182,9 +206,11 @@ def extract_text_from_pdf_safe(file_path):
                 text += content.lower() + " "
     return text
 
+
 def extract_text_from_docx_safe(file_path):
     doc = docx.Document(file_path)
     return " ".join([para.text.lower() for para in doc.paragraphs])
+
 
 def calculate_similarity(resume_text, reference_text):
     if not reference_text.strip():
@@ -192,6 +218,7 @@ def calculate_similarity(resume_text, reference_text):
     vectorizer = TfidfVectorizer()
     tfidf = vectorizer.fit_transform([resume_text, reference_text])
     return round(cosine_similarity(tfidf[0:1], tfidf[1:2])[0][0] * 100, 2)
+
 
 # ------------------- COMPANY QUIZ -------------------
 companies = {
@@ -201,19 +228,20 @@ companies = {
 }
 
 rules = {
-    "work_style": {"A": ["Amazon","PayPal","Google"], "B": ["TCS","Wipro","Accenture"],
-                   "C": ["Wells Fargo","Fidelity"], "D": ["Roche","Deloitte"]},
-    "tech_interest": {"A": ["Amazon","Google","Accenture"], "B": ["Wells Fargo","Fidelity","PayPal"],
-                      "C": ["Deloitte","Accenture"], "D": ["Roche"], "E": ["TCS","Wipro"]},
-    "career_goal": {"A": ["Amazon","Google","PayPal"], "B": ["TCS","Wipro","Accenture"],
-                    "C": ["Wells Fargo","Fidelity","Roche"], "D": ["Deloitte","Accenture"]},
-    "skills_focus": {"A": ["Amazon","Google","PayPal"], "B": ["TCS","Wipro","Accenture"],
-                     "C": ["Wells Fargo","Fidelity"], "D": ["Roche"], "E": ["Deloitte","Accenture"]},
-    "culture": {"A": ["Amazon","Google"], "B": ["TCS","Wipro","Accenture","Deloitte"],
-                "C": ["Wells Fargo","Fidelity","Roche"], "D": ["PayPal","Google","Amazon"]},
-    "salary": {"A": ["Amazon","Google","PayPal"], "B": ["Deloitte","Accenture"],
-               "C": ["Wells Fargo","Fidelity","Roche"], "D": ["TCS","Wipro"]}
+    "work_style": {"A": ["Amazon", "PayPal", "Google"], "B": ["TCS", "Wipro", "Accenture"],
+                   "C": ["Wells Fargo", "Fidelity"], "D": ["Roche", "Deloitte"]},
+    "tech_interest": {"A": ["Amazon", "Google", "Accenture"], "B": ["Wells Fargo", "Fidelity", "PayPal"],
+                      "C": ["Deloitte", "Accenture"], "D": ["Roche"], "E": ["TCS", "Wipro"]},
+    "career_goal": {"A": ["Amazon", "Google", "PayPal"], "B": ["TCS", "Wipro", "Accenture"],
+                    "C": ["Wells Fargo", "Fidelity", "Roche"], "D": ["Deloitte", "Accenture"]},
+    "skills_focus": {"A": ["Amazon", "Google", "PayPal"], "B": ["TCS", "Wipro", "Accenture"],
+                     "C": ["Wells Fargo", "Fidelity"], "D": ["Roche"], "E": ["Deloitte", "Accenture"]},
+    "culture": {"A": ["Amazon", "Google"], "B": ["TCS", "Wipro", "Accenture", "Deloitte"],
+                "C": ["Wells Fargo", "Fidelity", "Roche"], "D": ["PayPal", "Google", "Amazon"]},
+    "salary": {"A": ["Amazon", "Google", "PayPal"], "B": ["Deloitte", "Accenture"],
+               "C": ["Wells Fargo", "Fidelity", "Roche"], "D": ["TCS", "Wipro"]}
 }
+
 
 def recommend_company(answers):
     scores = {c: 0 for c in companies.keys()}
@@ -224,13 +252,16 @@ def recommend_company(answers):
     best_company = max(scores, key=scores.get)
     return best_company, scores
 
+
 # ------------------- ROUTES -------------------
 @app.route("/")
 def home():
     return render_template('home.html', show_sidebar=True)
 
+
 @app.route("/ingest_companies_dynamic")
 def ingest_companies_dynamic():
+    print("🚀 Ingest route hit", flush=True)
     thread = threading.Thread(target=ingest_company_files, daemon=True)
     thread.start()
     return jsonify({
@@ -238,11 +269,13 @@ def ingest_companies_dynamic():
         "message": "Ingestion started in background. Check logs for progress."
     })
 
+
 @app.route("/about")
 def about():
     return render_template('about.html', show_sidebar=False)
 
-@app.route("/login", methods=["GET","POST"])
+
+@app.route("/login", methods=["GET", "POST"])
 def login():
     form = LoginForm()
     if form.validate_on_submit():
@@ -252,6 +285,7 @@ def login():
             return redirect(url_for("home"))
         flash("Invalid username or password", "danger")
     return render_template("login.html", form=form)
+
 
 @app.route("/ingest_problems")
 def ingest_problems():
@@ -279,7 +313,7 @@ def ingest_problems():
     return jsonify({"status": "success", "inserted_ids": [str(i) for i in inserted.inserted_ids]})
 
 
-@app.route("/register", methods=["GET","POST"])
+@app.route("/register", methods=["GET", "POST"])
 def register():
     form = RegistrationForm()
     if form.validate_on_submit():
@@ -293,11 +327,13 @@ def register():
         return redirect(url_for("login"))
     return render_template("register.html", form=form)
 
+
 @app.route("/quiz")
 def quiz_home():
     return render_template("quiz_home.html", show_sidebar=True)
 
-@app.route("/quiz/company", methods=["GET","POST"])
+
+@app.route("/quiz/company", methods=["GET", "POST"])
 def company_quiz():
     if request.method == "POST":
         answers = {
@@ -318,17 +354,20 @@ def company_quiz():
 
     return render_template("company_quiz.html", show_sidebar=True)
 
+
 @app.route("/quiz/company/results")
 def company_results():
     company = session.get("last_company")
     scores = session.get("last_scores", {})
     return render_template("company_results.html", company=company, scores=scores, show_sidebar=True)
 
+
 @app.route("/quiz/role")
 def role_quiz():
     return render_template("quiz.html", show_sidebar=True)
 
-@app.route("/resume_checker", methods=["GET","POST"])
+
+@app.route("/resume_checker", methods=["GET", "POST"])
 def resume_checker():
     if request.method == "POST":
         role = request.form.get("role")
@@ -345,8 +384,8 @@ def resume_checker():
                 resume_text = extract_text_from_pdf_safe(save_path)
             else:
                 resume_text = extract_text_from_docx_safe(save_path)
-            role_score = calculate_similarity(resume_text, role_skills.get(role,""))
-            company_score = calculate_similarity(resume_text, company_skills.get(company,""))
+            role_score = calculate_similarity(resume_text, role_skills.get(role, ""))
+            company_score = calculate_similarity(resume_text, company_skills.get(company, ""))
             overall_score = calculate_similarity(resume_text, overall_text)
             os.remove(save_path)
             return render_template("resume_checker.html",
@@ -360,12 +399,13 @@ def resume_checker():
             return render_template("resume_checker.html", error=f"Error processing file: {str(e)}")
     return render_template("resume_checker.html")
 
+
 @app.route("/save_results", methods=["POST"])
 def save_results():
     data = request.json
     user_email = data.get("email")
     if not user_email:
-        return jsonify({"status":"error", "message":"No user email provided"}), 400
+        return jsonify({"status": "error", "message": "No user email provided"}), 400
 
     users.update_one(
         {"email": user_email},
@@ -374,23 +414,27 @@ def save_results():
             "preferred_role": data.get("preferred"),
             "suggested_role": data.get("suggested"),
             "final_message": data.get("finalMessage"),
-            "dream_company": data.get("dreamCompany","Unknown")
+            "dream_company": data.get("dreamCompany", "Unknown")
         }},
         upsert=True
     )
-    return jsonify({"status":"success"})
+    return jsonify({"status": "success"})
+
 
 @app.route("/roadmap")
 def roadmap():
     return render_template("roadmap.html", show_sidebar=True)
 
+
 @app.route("/self_confidence")
 def self_confidence():
     return render_template("self_confidence.html", show_sidebar=True)
 
+
 @app.route("/company_specific")
 def company_specific():
     return render_template("company_specific.html", show_sidebar=True)
+
 
 # ------------------- MAIN -------------------
 if __name__ == "__main__":
