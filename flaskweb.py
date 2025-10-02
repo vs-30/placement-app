@@ -56,6 +56,66 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+# ------------------- CSV INGEST FUNCTION -------------------
+def ingest_csv_from_url(url, collection):
+    """
+    Fetch a CSV file from a URL and insert its contents into the given MongoDB collection.
+    Handles missing collection, cleans fields, and avoids duplicates using 'ID' or 'slug'.
+    """
+    if collection is None:
+        logging.warning(f"❌ Collection is None. Cannot insert data from {url}")
+        return
+
+    try:
+        response = requests.get(url, timeout=15)
+        response.raise_for_status()
+        content = response.content.decode("utf-8")
+
+        reader = csv.DictReader(content.splitlines())
+        docs = []
+
+        for row in reader:
+            # Clean up and typecast fields if they exist
+            if 'ID' in row:
+                try:
+                    row['ID'] = int(row['ID'])
+                except ValueError:
+                    row['ID'] = None
+            if 'Frequency' in row:
+                try:
+                    row['Frequency'] = float(row['Frequency'])
+                except ValueError:
+                    row['Frequency'] = None
+
+            for field in ['Acceptance', 'Difficulty', 'Title', 'Leetcode Question Link']:
+                if field in row and row[field] is not None:
+                    row[field] = row[field].strip()
+
+            # Generate a slug for uniqueness if not provided
+            slug = (row.get('Title') or "").lower().replace(" ", "-")
+            slug = "".join(ch for ch in slug if ch.isalnum() or ch == "-")
+            if not slug:
+                continue
+
+            # Skip duplicate entries
+            if collection.find_one({"slug": slug}):
+                logging.info(f"⏩ Skipping duplicate slug: {slug}")
+                continue
+
+            row['slug'] = slug
+            docs.append(row)
+
+        if docs:
+            logging.info(f"Inserting {len(docs)} docs into {collection.name}")
+            collection.insert_many(docs)
+            logging.info(f"✅ Successfully inserted {len(docs)} docs from {url}")
+        else:
+            logging.warning(f"❌ No documents to insert from {url}")
+
+    except Exception as e:
+        logging.error(f"❌ Error processing CSV from {url}: {e}")
+
+
 # ------------------- GITHUB CSV INGEST -------------------
 GITHUB_API_URL = "https://api.github.com/repos/krishnadey30/LeetCode-Questions-CompanyWise/contents/"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")  # token from Render env
@@ -80,8 +140,6 @@ def get_company_csv_files(target_companies):
     return company_files
 
 
-# ------------------- BACKGROUND CSV INGEST -------------------
-
 def ingest_company_files():
     total_inserted = 0
     try:
@@ -93,87 +151,12 @@ def ingest_company_files():
             print(f"📂 Starting ingestion for company: {company} ({len(files)} files)", flush=True)
 
             for url in files:
-                try:
-                    print(f"🌐 Fetching file: {url}", flush=True)
-                    headers = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
-                    r = requests.get(url, headers=headers, timeout=15)
-                    r.raise_for_status()
-                    print(f"✅ Downloaded {len(r.text)} chars from {url}", flush=True)
-
-                    f = StringIO(r.text)
-                    reader = csv.DictReader(f)
-
-                    # Debug CSV headers
-                    print("📝 CSV Headers:", reader.fieldnames, flush=True)
-
-                    batch = []
-                    row_count = 0
-                    for row in reader:
-                        row_count += 1
-                        if row_count <= 3:  # print just first 3 rows for debug
-                            print("🔎 Sample row:", row, flush=True)
-
-                        # Normalize keys and strip values
-                        row = {k.strip().lower(): (v.strip() if v is not None else "") for k, v in row.items()}
-
-                        # Derive link and slug
-                        link = (row.get("leetcode question link") or row.get("link") or "").strip()
-                        slug = ""
-                        if link and "leetcode.com/problems/" in link:
-                            # Extract slug after the problems/ prefix
-                            slug = link.split("leetcode.com/problems/")[1].strip().strip("/")
-                            # In case the link contains query params or trailing pieces, take first segment
-                            slug = slug.split("/")[0]
-                        else:
-                            # Fallback: use id or title to create a slug
-                            fallback = row.get("id") or row.get("title") or ""
-                            slug = str(fallback).strip().lower().replace(" ", "-")
-                            slug = "".join(ch for ch in slug if ch.isalnum() or ch == "-" )
-
-                        if not slug:
-                            print("⚠️ Skipping row, no slug could be derived:", row, flush=True)
-                            continue
-
-                        # Check duplicate by slug
-                        if problems and problems.find_one({"slug": slug}):
-                            print(f"⏩ Skipped duplicate slug: {slug}", flush=True)
-                            continue
-
-                        problem_doc = {
-                            "title": row.get("title") or "",
-                            "slug": slug,
-                            "link": link or "",
-                            "difficulty": row.get("difficulty") or "",
-                            "tags": [tag.strip() for tag in (row.get("tags") or "").split(",") if tag.strip()],
-                            "company_tags": [company.title()],
-                            "source": "github"
-                        }
-                        batch.append(problem_doc)
-                        total_inserted += 1
-
-                        if len(batch) >= 50:
-                            if problems:
-                                problems.insert_many(batch)
-                            print(f"📥 Inserted batch of 50 for {company}", flush=True)
-                            batch = []
-
-                    # Final insert
-                    if batch:
-                        if problems:
-                            problems.insert_many(batch)
-                        print(f"📥 Inserted remaining {len(batch)} for {company}", flush=True)
-
-                    print(f"✅ Completed file {url}, processed {row_count} rows", flush=True)
-
-                except Exception as inner_e:
-                    print(f"❌ Error processing {company} file {url}: {inner_e}", flush=True)
+                ingest_csv_from_url(url, problems)  # use the safe ingest function
 
         print(f"🎯 Ingestion finished. Total new problems inserted: {total_inserted}", flush=True)
 
     except Exception as e:
         print("❌ Error during ingestion:", e, flush=True)
-
-
 # ------------------- RESUME CHECKER -------------------
 role_skills = {
     "Software Developer / Full Stack Developer": "java python c++ javascript react nodejs html css sql system design dsa",
