@@ -151,12 +151,58 @@ def ingest_company_files():
             print(f"📂 Starting ingestion for company: {company} ({len(files)} files)", flush=True)
 
             for url in files:
-                ingest_csv_from_url(url, problems)  # use the safe ingest function
+                inserted = ingest_csv_from_url(url, problems, company=company)  # ✅ pass company
+                total_inserted += inserted  # count how many inserted
 
         print(f"🎯 Ingestion finished. Total new problems inserted: {total_inserted}", flush=True)
 
     except Exception as e:
         print("❌ Error during ingestion:", e, flush=True)
+
+def ingest_csv_from_url(url, collection, company=None):
+    inserted_count = 0
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        content = response.content.decode("utf-8")
+
+        reader = csv.DictReader(content.splitlines())
+        docs = []
+        for row in reader:
+            # Derive slug from Leetcode link
+            slug = row.get("Leetcode Question Link", "").strip().rstrip("/").split("/")[-1]
+            if not slug:
+                continue
+
+            # Skip duplicates
+            if collection.find_one({"slug": slug}):
+                logging.info(f"⏩ Skipping duplicate slug: {slug}")
+                continue
+
+            problem_doc = {
+                "title": row.get("Title", "").strip(),
+                "slug": slug,
+                "link": row.get("Leetcode Question Link", "").strip(),
+                "difficulty": row.get("Difficulty", "").strip(),
+                "tags": [],
+                "company_tags": [company] if company else [],  # ✅ attach company
+                "source": "github"
+            }
+            docs.append(problem_doc)
+
+        if docs:
+            collection.insert_many(docs)
+            inserted_count = len(docs)
+            logging.info(f"📥 Inserted {inserted_count} docs from {url}")
+        else:
+            logging.warning(f"❌ No documents to insert from {url}")
+
+    except Exception as e:
+        logging.error(f"❌ Error processing file {url}: {e}")
+
+    return inserted_count
+
+
 # ------------------- RESUME CHECKER -------------------
 role_skills = {
     "Software Developer / Full Stack Developer": "java python c++ javascript react nodejs html css sql system design dsa",
