@@ -152,55 +152,55 @@ def ingest_company_files():
 
             for url in files:
                 inserted = ingest_csv_from_url(url, problems, company=company)  # ✅ pass company
-                total_inserted += inserted  # count how many inserted
+                total_inserted += inserted
 
         print(f"🎯 Ingestion finished. Total new problems inserted: {total_inserted}", flush=True)
 
     except Exception as e:
         print("❌ Error during ingestion:", e, flush=True)
 
-def ingest_csv_from_url(url, collection, company=None):
-    inserted_count = 0
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        content = response.content.decode("utf-8")
 
-        reader = csv.DictReader(content.splitlines())
-        docs = []
-        for row in reader:
-            # Derive slug from Leetcode link
-            slug = row.get("Leetcode Question Link", "").strip().rstrip("/").split("/")[-1]
+def ingest_csv_from_url(url, collection, company=None):
+    """
+    Reads a CSV from the given URL and inserts documents into MongoDB.
+    Adds 'company' tag to each problem document.
+    """
+    try:
+        df = pd.read_csv(url)
+        if df.empty:
+            logging.warning(f"❌ No documents to insert from {url}")
+            return 0
+
+        records = []
+        for _, row in df.iterrows():
+            slug = row.get("slug") or row.get("Slug") or ""
             if not slug:
                 continue
 
-            # Skip duplicates
-            if collection.find_one({"slug": slug}):
-                logging.info(f"⏩ Skipping duplicate slug: {slug}")
-                continue
+            record = {col.lower(): row[col] for col in df.columns if pd.notna(row[col])}
+            record["slug"] = slug.lower().strip()
 
-            problem_doc = {
-                "title": row.get("Title", "").strip(),
-                "slug": slug,
-                "link": row.get("Leetcode Question Link", "").strip(),
-                "difficulty": row.get("Difficulty", "").strip(),
-                "tags": [],
-                "company_tags": [company] if company else [],  # ✅ attach company
-                "source": "github"
-            }
-            docs.append(problem_doc)
+            # ✅ Add the company tag if provided
+            if company:
+                record["company"] = company.upper().strip()
 
-        if docs:
-            collection.insert_many(docs)
-            inserted_count = len(docs)
-            logging.info(f"📥 Inserted {inserted_count} docs from {url}")
-        else:
-            logging.warning(f"❌ No documents to insert from {url}")
+            records.append(record)
+
+        # Insert only new problems (no duplicates)
+        inserted_count = 0
+        for record in records:
+            if not collection.find_one({"slug": record["slug"]}):
+                collection.insert_one(record)
+                inserted_count += 1
+            else:
+                logging.info(f"⏩ Skipping duplicate slug: {record['slug']}")
+
+        logging.info(f"✅ Inserted {inserted_count} new problems for {company or 'Unknown'} from {url}")
+        return inserted_count
 
     except Exception as e:
-        logging.error(f"❌ Error processing file {url}: {e}")
-
-    return inserted_count
+        logging.error(f"❌ Failed to ingest {url}: {e}")
+        return 0
 
 
 # ------------------- RESUME CHECKER -------------------
