@@ -36,3 +36,4 @@ typing_extensions==4.15.0
 urllib3==2.5.0
 Werkzeug==2.2.3
 WTForms==3.0.1
+pandas==2.1.1
