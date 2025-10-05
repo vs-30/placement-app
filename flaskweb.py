@@ -162,30 +162,42 @@ def ingest_company_files():
 
 
 def ingest_csv_from_url(url, problems, company):
-    df = pd.read_csv(url)
-    
-    # Normalize column names (strip spaces, lowercase)
-    df.columns = [c.strip().lower() for c in df.columns]
+    import pandas as pd
+    import logging
 
-    for _, row in df.iterrows():
-        problem = {
-            "id": int(row.get("id", 0)),
-            "title": row.get("title", "").strip(),
-            "acceptance": row.get("acceptance", "").strip(),
-            "difficulty": row.get("difficulty", "").strip(),
-            "frequency": row.get("frequency", "").strip(),
-            "link": row.get("leetcode question link", "").strip(),
-            "company_tags": [company]
-        }
+    try:
+        df = pd.read_csv(url)
+        df.columns = [c.strip().lower() for c in df.columns]
 
-        if problem["title"] and problem["link"]:
-            problems.update_one(
-                {"title": problem["title"]},
-                {"$set": problem},
-                upsert=True
-            )
+        inserted = 0
 
-    print(f"✅ Inserted/Updated problems for {company} from {url}", flush=True)
+        for _, row in df.iterrows():
+            problem = {
+                "id": int(row.get("id", 0)) if pd.notna(row.get("id")) else 0,
+                "title": str(row.get("title", "")).strip(),
+                "acceptance": str(row.get("acceptance", "")).strip(),
+                "difficulty": str(row.get("difficulty", "")).strip(),
+                "frequency": str(row.get("frequency", "")).strip(),
+                "link": str(row.get("leetcode question link", "")).strip(),
+                "company_tags": [company]
+            }
+
+            if problem["title"] and problem["link"]:
+                result = problems.update_one(
+                    {"title": problem["title"]},
+                    {"$set": problem},
+                    upsert=True
+                )
+                if result.upserted_id:
+                    inserted += 1
+
+        logging.info(f"✅ Inserted {inserted} new problems for {company} from {url}")
+        return inserted
+
+    except Exception as e:
+        logging.error(f"❌ Failed to ingest {url}: {e}")
+        return 0
+
 
 
 
