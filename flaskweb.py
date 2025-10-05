@@ -460,8 +460,16 @@ def self_confidence():
 
 @app.route("/company_specific")
 def company_specific():
-    return render_template("company_specific.html", show_sidebar=True)
-
+    return render_template("company_specific.html", 
+                           companies=TARGET_COMPANIES, 
+                           show_sidebar=True)
+@app.route("/company/<company_name>")
+def company_questions(company_name):
+    company_problems = list(problems.find({"company_tags": company_name}, {"_id": 0}))
+    return render_template("company_questions.html", 
+                           company=company_name, 
+                           problems=company_problems, 
+                           show_sidebar=True)
 
 # ------------------- MAIN -------------------
 if __name__ == "__main__":

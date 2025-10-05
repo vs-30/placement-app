@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+  .problems-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    padding: 30px 0;
+  }
+
+  .problem-card {
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    padding: 20px 25px;
+    width: 250px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    color: #333;
+    font-weight: bold;
+    text-decoration: none;
+  }
+
+  .problem-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.18);
+    background: #f0e6ff;
+  }
+
+  .problem-card a {
+    text-decoration: none;
+    color: #333;
+  }
+
+  .problem-card a:hover {
+    text-decoration: underline;
+    color: #5a2be0;
+  }
+
+  .problem-card p {
+    font-weight: normal;
+    font-size: 14px;
+    margin: 5px 0;
+  }
+</style>
+
+<h2 style="text-align:center; margin-bottom:30px;">{{ company }} Problems</h2>
+
+<div class="problems-container">
+  {% for p in problems %}
+    <div class="problem-card">
+      <a href="{{ p.link }}" target="_blank">{{ p.title }}</a>
+      <p>Difficulty: {{ p.difficulty }}</p>
+      <p>Frequency: {{ p.frequency }}</p>
+    </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

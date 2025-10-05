@@ -1,5 +1,46 @@
 {% extends "layout.html" %}
 {% block content %}
-<h1>Comapny Specific roadmap Page</h1>
-<p>Your coding roadmap will appear here.</p>
+
+<style>
+  .company-selection-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    padding: 30px 0;
+  }
+
+  .company-card {
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    padding: 30px 40px;
+    width: 220px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    font-family: Arial, sans-serif;
+    font-size: 18px;
+    color: #333;
+    font-weight: bold;
+    text-decoration: none;
+  }
+
+  .company-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.18);
+    background: #f0e6ff;
+  }
+</style>
+
+<h2 style="text-align:center; margin-bottom:30px;">Select a Company</h2>
+
+<div class="company-selection-container">
+  {% for company in companies %}
+    <a href="{{ url_for('company_questions', company_name=company) }}" class="company-card">
+      {{ company }}
+    </a>
+  {% endfor %}
+</div>
+
 {% endblock %}
