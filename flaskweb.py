@@ -161,47 +161,32 @@ def ingest_company_files():
         print("❌ Error during ingestion:", e, flush=True)
 
 
-def ingest_csv_from_url(url, collection, company=None):
-    """
-    Reads a CSV from the given URL and inserts documents into MongoDB.
-    Adds 'company' tag to each problem document.
-    """
-    try:
-        df = pd.read_csv(url)
-        if df.empty:
-            logging.warning(f"❌ No documents to insert from {url}")
-            return 0
+def ingest_csv_from_url(url, problems, company):
+    df = pd.read_csv(url)
+    
+    # Normalize column names (strip spaces, lowercase)
+    df.columns = [c.strip().lower() for c in df.columns]
 
-        records = []
-        for _, row in df.iterrows():
-            slug = row.get("slug") or row.get("Slug") or ""
-            if not slug:
-                continue
+    for _, row in df.iterrows():
+        problem = {
+            "id": int(row.get("id", 0)),
+            "title": row.get("title", "").strip(),
+            "acceptance": row.get("acceptance", "").strip(),
+            "difficulty": row.get("difficulty", "").strip(),
+            "frequency": row.get("frequency", "").strip(),
+            "link": row.get("leetcode question link", "").strip(),
+            "company_tags": [company]
+        }
 
-            record = {col.lower(): row[col] for col in df.columns if pd.notna(row[col])}
-            record["slug"] = slug.lower().strip()
+        if problem["title"] and problem["link"]:
+            problems.update_one(
+                {"title": problem["title"]},
+                {"$set": problem},
+                upsert=True
+            )
 
-            # ✅ Add the company tag if provided
-            if company:
-                record["company"] = company.upper().strip()
+    print(f"✅ Inserted/Updated problems for {company} from {url}", flush=True)
 
-            records.append(record)
-
-        # Insert only new problems (no duplicates)
-        inserted_count = 0
-        for record in records:
-            if not collection.find_one({"slug": record["slug"]}):
-                collection.insert_one(record)
-                inserted_count += 1
-            else:
-                logging.info(f"⏩ Skipping duplicate slug: {record['slug']}")
-
-        logging.info(f"✅ Inserted {inserted_count} new problems for {company or 'Unknown'} from {url}")
-        return inserted_count
-
-    except Exception as e:
-        logging.error(f"❌ Failed to ingest {url}: {e}")
-        return 0
 
 
 # ------------------- RESUME CHECKER -------------------
