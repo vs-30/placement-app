@@ -69,7 +69,7 @@ def get_company_csv_files(target_companies):
 
     company_files = {company: [] for company in target_companies}
     for f in files:
-        filename = f["name"].lower()  # Convert to lowercase for matching
+        filename = f["name"].lower()
         for company in target_companies:
             if filename.startswith(company) and filename.endswith(".csv"):
                 company_files[company].append(f["download_url"])
@@ -194,13 +194,17 @@ def recommend_company(answers):
     return best_company, scores
 
 # ------------------- ROUTES -------------------
+
 @app.route("/")
 def home():
     return render_template('home.html', show_sidebar=True, TARGET_COMPANIES=TARGET_COMPANIES)
 
+@app.route("/quiz")
+def quiz_home():
+    return render_template("quiz.html", show_sidebar=True)
+
 @app.route("/ingest_companies_dynamic")
 def ingest_companies_dynamic():
-    print("🚀 Ingest route hit", flush=True)
     thread = threading.Thread(target=ingest_company_files, daemon=True)
     thread.start()
     return jsonify({"status": "success", "message": "Ingestion started in background. Check logs for progress."})
@@ -234,6 +238,31 @@ def register():
         flash("Account created! You can now log in.", "success")
         return redirect(url_for("login"))
     return render_template("register.html", form=form)
+
+@app.route("/check_resume", methods=["POST"])
+def check_resume():
+    if 'resume' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files['resume']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    if not allowed_file(file.filename):
+        return jsonify({"error": "File type not allowed"}), 400
+
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    file.save(filepath)
+
+    if filename.endswith(".pdf"):
+        text = extract_text_from_pdf_safe(filepath)
+    elif filename.endswith(".docx"):
+        text = extract_text_from_docx_safe(filepath)
+    else:
+        text = ""
+
+    similarity = calculate_similarity(text, overall_text)
+    return jsonify({"similarity": similarity})
 
 # ------------------- MAIN -------------------
 if __name__ == "__main__":
