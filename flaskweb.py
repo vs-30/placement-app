@@ -195,23 +195,38 @@ def recommend_company(answers):
 
 # ------------------- ROUTES -------------------
 
+# -------------------- ROUTES --------------------
+
 @app.route("/")
 def home():
-    return render_template('home.html', show_sidebar=True, TARGET_COMPANIES=TARGET_COMPANIES)
+    return render_template("home.html", show_sidebar=True)
+
+
+@app.route("/quiz_home")
+def quiz_home():
+    return render_template("quiz_home.html", show_sidebar=True)
+
 
 @app.route("/quiz")
-def quiz_home():
+def quiz():
     return render_template("quiz.html", show_sidebar=True)
+
 
 @app.route("/ingest_companies_dynamic")
 def ingest_companies_dynamic():
+    print("🚀 Ingest route hit", flush=True)
     thread = threading.Thread(target=ingest_company_files, daemon=True)
     thread.start()
-    return jsonify({"status": "success", "message": "Ingestion started in background. Check logs for progress."})
+    return jsonify({
+        "status": "success",
+        "message": "Ingestion started in background. Check logs for progress."
+    })
+
 
 @app.route("/about")
 def about():
-    return render_template('about.html', show_sidebar=False)
+    return render_template("about.html", show_sidebar=False)
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -220,7 +235,7 @@ def login():
         user = users.find_one({"username": form.username.data})
         if user and bcrypt.check_password_hash(user["password"], form.password.data):
             flash("Login successful!", "success")
-            session['username'] = user['username']
+            session["username"] = user["username"]
             return redirect(url_for("home"))
         flash("Invalid username or password", "danger")
     return render_template("login.html", form=form)
@@ -239,30 +254,130 @@ def register():
         return redirect(url_for("login"))
     return render_template("register.html", form=form)
 
-@app.route("/check_resume", methods=["POST"])
-def check_resume():
-    if 'resume' not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-    file = request.files['resume']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-    if not allowed_file(file.filename):
-        return jsonify({"error": "File type not allowed"}), 400
+@app.route("/quiz/company", methods=["GET", "POST"])
+def company_quiz():
+    if request.method == "POST":
+        answers = {
+            "work_style": request.form.get("work_style"),
+            "tech_interest": request.form.get("tech_interest"),
+            "career_goal": request.form.get("career_goal"),
+            "skills_focus": request.form.get("skills_focus"),
+            "culture": request.form.get("culture"),
+            "salary": request.form.get("salary")
+        }
+        company, scores = recommend_company(answers)
+        session["last_company"] = company
+        session["last_scores"] = scores
+        return redirect(url_for("company_results"))
+    return render_template("company_quiz.html", show_sidebar=True)
 
-    filename = secure_filename(file.filename)
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    file.save(filepath)
 
-    if filename.endswith(".pdf"):
-        text = extract_text_from_pdf_safe(filepath)
-    elif filename.endswith(".docx"):
-        text = extract_text_from_docx_safe(filepath)
-    else:
-        text = ""
+@app.route("/quiz/company/results")
+def company_results():
+    company = session.get("last_company")
+    scores = session.get("last_scores", {})
+    return render_template(
+        "company_results.html",
+        company=company,
+        scores=scores,
+        show_sidebar=True
+    )
 
-    similarity = calculate_similarity(text, overall_text)
-    return jsonify({"similarity": similarity})
+
+@app.route("/quiz/role")
+def role_quiz():
+    return render_template("quiz.html", show_sidebar=True)
+
+
+@app.route("/resume_checker", methods=["GET", "POST"])
+def resume_checker():
+    if request.method == "POST":
+        role = request.form.get("role")
+        company = request.form.get("company")
+        file = request.files.get("resume")
+
+        if not file or not allowed_file(file.filename):
+            return render_template("resume_checker.html", error="Upload PDF/DOCX under 5 MB")
+
+        filename = secure_filename(file.filename)
+        os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+        save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        file.save(save_path)
+
+        try:
+            if filename.endswith(".pdf"):
+                resume_text = extract_text_from_pdf_safe(save_path)
+            else:
+                resume_text = extract_text_from_docx_safe(save_path)
+
+            role_score = calculate_similarity(resume_text, role_skills.get(role, ""))
+            company_score = calculate_similarity(resume_text, company_skills.get(company, ""))
+            overall_score = calculate_similarity(resume_text, overall_text)
+            os.remove(save_path)
+
+            return render_template(
+                "resume_checker.html",
+                role=role,
+                company=company,
+                role_score=role_score,
+                company_score=company_score,
+                overall_score=overall_score
+            )
+
+        except Exception as e:
+            if os.path.exists(save_path):
+                os.remove(save_path)
+            return render_template("resume_checker.html", error=f"Error processing file: {str(e)}")
+
+    return render_template("resume_checker.html")
+
+
+@app.route("/save_results", methods=["POST"])
+def save_results():
+    data = request.json
+    user_email = data.get("email")
+    if not user_email:
+        return jsonify({"status": "error", "message": "No user email provided"}), 400
+
+    users.update_one(
+        {"email": user_email},
+        {"$set": {
+            "answers": data.get("answers"),
+            "preferred_role": data.get("preferred"),
+            "suggested_role": data.get("suggested"),
+            "final_message": data.get("finalMessage"),
+            "dream_company": data.get("dreamCompany", "Unknown")
+        }},
+        upsert=True
+    )
+    return jsonify({"status": "success"})
+
+
+@app.route("/roadmap")
+def roadmap():
+    return render_template("roadmap.html", show_sidebar=True)
+
+
+@app.route("/self_confidence")
+def self_confidence():
+    return render_template("self_confidence.html", show_sidebar=True)
+
+
+@app.route("/company_specific")
+def company_specific():
+    return render_template("company_specific.html", companies=TARGET_COMPANIES, show_sidebar=True)
+
+
+@app.route("/company/<company_name>")
+def company_questions(company_name):
+    company_name = company_name.lower()
+    company_problems = list(problems.find({"company_tags": company_name}, {"_id": 0}))
+    return render_template(
+        "company_questions.html",
+        company=company_name,
+        problems=company_problems,
+        show_sidebar=True
+    )
 
 # ------------------- MAIN -------------------
 if __name__ == "__main__":
