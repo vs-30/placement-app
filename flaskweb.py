@@ -18,11 +18,17 @@ from sklearn.metrics.pairwise import cosine_similarity
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
 print("✅ Logging initialized", flush=True)
 
+# ------------------- ENVIRONMENT KEYS -------------------
+SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+
 # ------------------- MONGO DB SETUP -------------------
-mongo_uri = os.getenv("MONGO_URI")
 try:
     client = MongoClient(
-        mongo_uri,
+        MONGO_URI,
         tls=True,
         tlsAllowInvalidCertificates=True,
         serverSelectionTimeoutMS=5000
@@ -42,7 +48,7 @@ except Exception as e:
 
 # ------------------- FLASK SETUP -------------------
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev_secret_key")
+app.config['SECRET_KEY'] = SECRET_KEY
 bcrypt = Bcrypt(app)
 
 # ------------------- UPLOAD SETTINGS -------------------
@@ -55,7 +61,6 @@ def allowed_file(filename):
 
 # ------------------- GITHUB CSV INGEST -------------------
 GITHUB_API_URL = "https://api.github.com/repos/krishnadey30/LeetCode-Questions-CompanyWise/contents/"
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 TARGET_COMPANIES = [
     "amazon", "adobe", "airbnb", "apple", "cisco", "doordash", "paypal",
     "facebook", "goldman", "google", "linkedin", "meta", "microsoft", "netflix"
@@ -194,23 +199,17 @@ def recommend_company(answers):
     return best_company, scores
 
 # ------------------- ROUTES -------------------
-
-# -------------------- ROUTES --------------------
-
 @app.route("/")
 def home():
     return render_template("home.html", show_sidebar=True)
-
 
 @app.route("/quiz_home")
 def quiz_home():
     return render_template("quiz_home.html", show_sidebar=True)
 
-
 @app.route("/quiz")
 def quiz():
     return render_template("quiz.html", show_sidebar=True)
-
 
 @app.route("/ingest_companies_dynamic")
 def ingest_companies_dynamic():
@@ -219,14 +218,12 @@ def ingest_companies_dynamic():
     thread.start()
     return jsonify({
         "status": "success",
-        "message": "Ingestion started in background. Check logs for progress."
+        "message":         "Ingestion started in background. Check logs for progress."
     })
-
 
 @app.route("/about")
 def about():
     return render_template("about.html", show_sidebar=False)
-
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -271,7 +268,6 @@ def company_quiz():
         return redirect(url_for("company_results"))
     return render_template("company_quiz.html", show_sidebar=True)
 
-
 @app.route("/quiz/company/results")
 def company_results():
     company = session.get("last_company")
@@ -283,11 +279,9 @@ def company_results():
         show_sidebar=True
     )
 
-
 @app.route("/quiz/role")
 def role_quiz():
     return render_template("quiz.html", show_sidebar=True)
-
 
 @app.route("/resume_checker", methods=["GET", "POST"])
 def resume_checker():
@@ -331,7 +325,6 @@ def resume_checker():
 
     return render_template("resume_checker.html")
 
-
 @app.route("/save_results", methods=["POST"])
 def save_results():
     data = request.json
@@ -352,21 +345,44 @@ def save_results():
     )
     return jsonify({"status": "success"})
 
-
 @app.route("/roadmap")
 def roadmap():
     return render_template("roadmap.html", show_sidebar=True)
-
 
 @app.route("/self_confidence")
 def self_confidence():
     return render_template("self_confidence.html", show_sidebar=True)
 
-
 @app.route("/company_specific")
 def company_specific():
     return render_template("company_specific.html", companies=TARGET_COMPANIES, show_sidebar=True)
 
+# ------------------- CHATBOT -------------------
+from google import genai
+
+# Initialize Gemini client with API key
+chatbot_client = genai.Client(api_key=GEMINI_API_KEY)
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    user_message = request.json.get("message", "")
+
+    prompt = f"""
+    You are an AI Placement Guidance Chatbot for engineering students.
+    User: "{user_message}"
+    Provide guidance about placements, companies, skills, and interview tips.
+    """
+
+    try:
+        response = chatbot_client.models.generate_content(
+            model="models/gemini-2.5-flash",
+            contents=prompt
+        )
+        reply = response.text.strip()
+    except Exception as e:
+        reply = f"Error: {str(e)}"
+
+    return jsonify({"reply": reply})
 
 @app.route("/company/<company_name>")
 def company_questions(company_name):
@@ -383,3 +399,4 @@ def company_questions(company_name):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+

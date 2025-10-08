@@ -10,6 +10,7 @@
         integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
         crossorigin="anonymous">
   <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='main.css') }}">
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='chatbot.css') }}">
 
   {% if title %}
     <title>Home Page - {{ title }}</title>
@@ -32,7 +33,6 @@
             <a class="nav-item nav-link" href="/">Home</a>
             <a class="nav-item nav-link" href="/about">About</a>
           </div>
-          <!-- Navbar Right Side -->
           <div class="navbar-nav">
             <a class="nav-item nav-link" href="/login">Login</a>
             <a class="nav-item nav-link" href="/register">Register</a>
@@ -64,7 +64,6 @@
           <ul class="list-group">
             <li class="list-group-item">
               <a href="{{ url_for('quiz_home') }}" class="text-decoration-none text-dark">QUIZ</a>
-
             </li>
             <li class="list-group-item">
               <a href="{{ url_for('roadmap') }}" class="text-decoration-none text-dark">ROADMAP</a>
@@ -76,16 +75,41 @@
               <a href="{{ url_for('company_specific') }}" class="text-decoration-none text-dark">COMPANY SPECIFIC</a>
             </li>
             <li class="list-group-item">
-            <a href="{{ url_for('resume_checker') }}" class="text-decoration-none text-dark">RESUME CHECKER</a>
+              <a href="{{ url_for('resume_checker') }}" class="text-decoration-none text-dark">RESUME CHECKER</a>
             </li>
-
-            
           </ul>
         </div>
       </div>
       {% endif %}
     </div>
   </main>
+
+  <!-- Chatbot Floating Widget -->
+  <div class="chat-container" id="chatbot">
+    <div id="chat-header" style="cursor:pointer; font-weight:bold; background:#3182ce; color:white; padding:5px; border-radius:8px;">
+      🎓 Placement Chatbot
+    </div>
+    <div id="chat-body" style="display:none; padding:10px;">
+      <div id="chat-box"></div>
+      <div class="input-area">
+        <input id="user-input" type="text" placeholder="Ask about placements, skills, or companies..." />
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .chat-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 300px;
+      z-index: 9999;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+  </style>
 
   <!-- Optional JavaScript -->
   <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
@@ -97,5 +121,37 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js"
           integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
           crossorigin="anonymous"></script>
+
+  <script>
+    // Toggle chat window
+    document.getElementById("chat-header").onclick = function() {
+      const body = document.getElementById("chat-body");
+      body.style.display = body.style.display === "none" ? "block" : "none";
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById("user-input");
+      const message = input.value.trim();
+      if (!message) return;
+
+      const chatBox = document.getElementById("chat-box");
+      chatBox.innerHTML += `<div class='user-msg'>You: ${message}</div>`;
+      input.value = "";
+
+      try {
+        const response = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message }),
+        });
+        const data = await response.json();
+        chatBox.innerHTML += `<div class='bot-msg'>Bot: ${data.reply}</div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+      } catch (err) {
+        chatBox.innerHTML += `<div class='bot-msg'>Bot: Error connecting to server.</div>`;
+      }
+    }
+  </script>
+
 </body>
 </html>
