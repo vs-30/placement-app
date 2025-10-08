@@ -139,15 +139,21 @@ role_skills = {
 
 company_skills = {
     "amazon": "python sql machine learning aws system design data structures algorithms",
-    "wells fargo": "java python c# sql oracle azure finance cybersecurity compliance",
-    "fidelity": "java python sql aws azure devops agile finance investment concepts",
+    "adobe": "javascript python html css react design ux photoshop creative suite",
+    "airbnb": "python java javascript react nodejs aws cloud data analytics system design",
+    "apple": "swift objective-c ios macos python machine learning hardware software integration",
+    "cisco": "networking c python linux cloud security routers switches protocols",
+    "doordash": "python java scala microservices APIs logistics backend distributed systems",
     "paypal": "java javascript python mysql mongodb apis rest microservices fintech security encryption",
-    "roche": "python r sql data analysis healthcare cloud ai ml bioinformatics",
-    "deloitte": "java python sql javascript sap salesforce cloud data analytics cybersecurity communication",
-    "tcs": "c java python aptitude dbms software testing coding",
-    "accenture": "java python c sql aws azure gcp salesforce devops sap teamwork",
-    "wipro": "c java python aptitude logical reasoning ai ml testing cloud"
+    "facebook": "python c++ java javascript react ai ml data structures algorithms",
+    "goldman": "python java c# finance trading sql risk analysis investment banking",
+    "google": "python c++ java machine learning ai cloud systems algorithms data structures",
+    "linkedin": "java python scala data engineering big data hadoop spark algorithms cloud",
+    "meta": "python c++ java machine learning ai cloud systems data structures algorithms",
+    "microsoft": "c# .net python azure cloud ai machine learning data structures algorithms",
+    "netflix": "java python scala microservices cloud streaming recommendation systems ai"
 }
+
 
 overall_text = " ".join(list(role_skills.values()) + list(company_skills.values()))
 
@@ -172,9 +178,10 @@ def calculate_similarity(resume_text, reference_text):
     return round(cosine_similarity(tfidf[0:1], tfidf[1:2])[0][0] * 100, 2)
 
 # ------------------- COMPANY QUIZ -------------------
+
+# Initialize companies with 0 scores based on company_skills keys
 companies = {c: 0 for c in company_skills.keys()}
 
-companies = {c: 0 for c in company_skills.keys()}
 
 rules = {
     "work_style": {
