@@ -174,20 +174,49 @@ def calculate_similarity(resume_text, reference_text):
 # ------------------- COMPANY QUIZ -------------------
 companies = {c: 0 for c in company_skills.keys()}
 
+companies = {c: 0 for c in company_skills.keys()}
+
 rules = {
-    "work_style": {"A": ["amazon", "paypal", "google"], "B": ["tcs", "wipro", "accenture"],
-                   "C": ["wells fargo", "fidelity"], "D": ["roche", "deloitte"]},
-    "tech_interest": {"A": ["amazon", "google", "accenture"], "B": ["wells fargo", "fidelity", "paypal"],
-                      "C": ["deloitte", "accenture"], "D": ["roche"], "E": ["tcs", "wipro"]},
-    "career_goal": {"A": ["amazon", "google", "paypal"], "B": ["tcs", "wipro", "accenture"],
-                    "C": ["wells fargo", "fidelity", "roche"], "D": ["deloitte", "accenture"]},
-    "skills_focus": {"A": ["amazon", "google", "paypal"], "B": ["tcs", "wipro", "accenture"],
-                     "C": ["wells fargo", "fidelity"], "D": ["roche"], "E": ["deloitte", "accenture"]},
-    "culture": {"A": ["amazon", "google"], "B": ["tcs", "wipro", "accenture", "deloitte"],
-                "C": ["wells fargo", "fidelity", "roche"], "D": ["paypal", "google", "amazon"]},
-    "salary": {"A": ["amazon", "google", "paypal"], "B": ["deloitte", "accenture"],
-               "C": ["wells fargo", "fidelity", "roche"], "D": ["tcs", "wipro"]}
+    "work_style": {
+        "A": ["amazon", "google", "meta"],
+        "B": ["paypal", "apple", "linkedin"],
+        "C": ["microsoft", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+    },
+    "tech_interest": {
+        "A": ["amazon", "google", "meta"],
+        "B": ["paypal", "apple", "linkedin"],
+        "C": ["microsoft", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+        "E": []  # if you want E option to exist but no companies, keep empty
+    },
+    "career_goal": {
+        "A": ["amazon", "google", "paypal"],
+        "B": ["meta", "microsoft", "apple"],
+        "C": ["linkedin", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+    },
+    "skills_focus": {
+        "A": ["amazon", "google", "paypal"],
+        "B": ["meta", "microsoft", "apple"],
+        "C": ["linkedin", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+        "E": []
+    },
+    "culture": {
+        "A": ["amazon", "google", "meta"],
+        "B": ["paypal", "apple", "linkedin"],
+        "C": ["microsoft", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+    },
+    "salary": {
+        "A": ["amazon", "google", "paypal"],
+        "B": ["meta", "microsoft", "apple"],
+        "C": ["linkedin", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+    }
 }
+
 
 def recommend_company(answers):
     scores = {c: 0 for c in companies.keys()}
