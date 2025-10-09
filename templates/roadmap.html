@@ -53,13 +53,24 @@
     <ul class="list-group list-group-flush">
       {% for task in tasks %}
       <li class="list-group-item d-flex justify-content-between align-items-center">
-        <span>
-          <strong>{{ task["question"] }}</strong>
-          <small class="text-muted">({{ task["topic"] | title }})</small>
-        </span>
-        {% if task["link"] %}
-        <a href="{{ task['link'] }}" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
-        {% endif %}
+        <div>
+          <strong>{{ task["title"] }}</strong>
+          <br>
+          <small class="text-muted">Topic: {{ task["topic"] | title }}</small>
+          <br>
+          <small class="text-info">Allocated Time: {{ task["expected_time_min"] }} min</small>
+        </div>
+        <div>
+          {% if task["link"] %}
+          <a href="{{ task['link'] }}" target="_blank" class="btn btn-sm btn-outline-primary mb-1">View</a>
+          {% endif %}
+          <button class="btn btn-sm btn-outline-success start-timer-btn" 
+                  data-minutes="{{ task['expected_time_min'] }}" 
+                  data-question="{{ task['title'] }}">
+            Start Timer
+          </button>
+          <div class="mt-1 text-danger timer-display" id="timer-{{ loop.index }}"></div>
+        </div>
       </li>
       {% endfor %}
     </ul>
@@ -68,4 +79,42 @@
   {% endif %}
 </div>
 
+<!-- Timer Script -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const buttons = document.querySelectorAll(".start-timer-btn");
+
+  buttons.forEach((btn, idx) => {
+    let timerInterval;
+
+    btn.addEventListener("click", function() {
+      clearInterval(timerInterval); // stop any existing timer
+
+      const minutes = parseInt(this.dataset.minutes);
+      let secondsLeft = minutes * 60;
+      const display = document.getElementById(`timer-${idx + 1}`);
+
+      display.textContent = formatTime(secondsLeft);
+
+      timerInterval = setInterval(() => {
+        secondsLeft--;
+        display.textContent = formatTime(secondsLeft);
+
+        if (secondsLeft <= 0) {
+          clearInterval(timerInterval);
+          alert(`⏰ Time's up for "${this.dataset.question}"!`);
+        }
+      }, 1000);
+    });
+  });
+
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+});
+</script>
+
 {% endblock %}
+
