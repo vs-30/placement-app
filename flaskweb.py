@@ -81,7 +81,7 @@ TOPIC_KEYWORDS = {
         "anagram", "regex", "string matching", "encode", "decode",
         "compress", "valid parentheses", "reorder"
     ],
-    "linked lists": [
+    "linked list": [
         "linked list", "singly linked list", "doubly linked list",
         "reverse linked list", "merge k lists", "cycle", "palindrome list"
     ],
@@ -361,7 +361,17 @@ def login():
         if user and bcrypt.check_password_hash(user["password"], form.password.data):
             flash("Login successful!", "success")
             session["username"] = user["username"]
+            session["email"] = user["email"]  # Store email for completed questions
+
+            # Initialize completed_questions if not present
+            if "completed_questions" not in user:
+                users.update_one(
+                    {"email": user["email"]},
+                    {"$set": {"completed_questions": {}}}
+                )
+
             return redirect(url_for("home"))
+
         flash("Invalid username or password", "danger")
     return render_template("login.html", form=form)
 
@@ -527,6 +537,14 @@ def generate_roadmap():
         # Weekly time budget in minutes
         minutes_per_week = hours_per_week * 60
 
+        # Fetch user's completed questions from DB
+        user_email = session.get("email")
+        completed = {}
+        if user_email:
+            user = users.find_one({"email": user_email})
+            if user and "completed_questions" in user:
+                completed = user["completed_questions"]
+
         roadmap = {}
         problem_index = 0
 
@@ -546,7 +564,8 @@ def generate_roadmap():
                         "link": prob.get("link", "#"),
                         "difficulty": difficulty,
                         "expected_time_min": expected_time,
-                        "topic": topic
+                        "topic": topic,
+                        "completed": completed.get(prob.get("title", ""), False)
                     })
                     used_minutes += expected_time
                     problem_index += 1
@@ -558,7 +577,7 @@ def generate_roadmap():
         return render_template(
             "roadmap.html",
             show_sidebar=True,
-            companies_list=TARGET_COMPANIES,  # still keep for sidebar or other use
+            companies_list=TARGET_COMPANIES,  # optional for sidebar
             topics_list=TOPICS_LIST,
             roadmap=roadmap,
             selected_topics=selected_topics
@@ -568,6 +587,39 @@ def generate_roadmap():
         logging.error(f"Error generating roadmap: {e}")
         flash("Something went wrong while generating the roadmap.", "danger")
         return redirect(url_for("roadmap"))
+
+@app.route("/toggle_completed", methods=["POST"])
+def toggle_completed():
+    if "email" not in session:
+        return jsonify({"status": "error", "message": "User not logged in"}), 401
+
+    user_email = session["email"]
+    data = request.json
+    question_title = data.get("title")
+
+    if not question_title:
+        return jsonify({"status": "error", "message": "No question title provided"}), 400
+
+    # Fetch existing completed questions
+    user = users.find_one({"email": user_email})
+    completed = user.get("completed_questions", {}) if user else {}
+
+    # Toggle completed status
+    current_status = completed.get(question_title, False)
+    completed[question_title] = not current_status
+
+    # Update in DB
+    users.update_one(
+        {"email": user_email},
+        {"$set": {"completed_questions": completed}},
+        upsert=True
+    )
+
+    return jsonify({
+        "status": "success",
+        "title": question_title,
+        "completed": completed[question_title]
+    })
 
 
 @app.route("/self_confidence")
