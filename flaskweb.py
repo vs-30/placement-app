@@ -15,7 +15,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 # ------------------- LOGGING -------------------
-logging.basicConfig(level=lo5gging.DEBUG, stream=sys.stdout)
+logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
 print("✅ Logging initialized", flush=True)
 
 # ------------------- ENVIRONMENT KEYS -------------------
