@@ -13,7 +13,6 @@ import fitz  # PyMuPDF
 import docx
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from random import shuffle
 
 # ------------------- LOGGING -------------------
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
@@ -24,6 +23,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key")
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 
 # ------------------- MONGO DB SETUP -------------------
 try:
@@ -39,6 +39,7 @@ try:
     users = db["users"]
     results = db["results"]
     problems = db["problems"]
+    problem_variants = db["problem_variants"]
 except Exception as e:
     print("❌ MongoDB connection failed:", e, flush=True)
     users = None
@@ -64,32 +65,99 @@ TARGET_COMPANIES = [
     "amazon", "adobe", "airbnb", "apple", "cisco", "doordash", "paypal",
     "facebook", "goldman", "google", "linkedin", "meta", "microsoft", "netflix"
 ]
-
-# ------------------- TOPIC KEYWORDS -------------------
+TOPICS_LIST = [
+    "arrays", "strings", "linked list", "stack", "queue", "recursion",
+    "dynamic programming", "greedy", "graphs", "trees", "heaps",
+    "backtracking", "binary search", "math", "bit manipulation"
+]
 TOPIC_KEYWORDS = {
-    "arrays": ["array", "subarray", "matrix", "two sum", "maximum subarray"],
-    "strings": ["string", "substring", "palindrome", "longest common prefix"],
-    "linked lists": ["linked list", "singly linked list", "doubly linked list"],
-    "stacks & queues": ["stack", "queue", "deque"],
-    "hashing": ["hash", "hashmap", "hash set", "dictionary", "two sum"],
-    "heaps / priority queues": ["heap", "priority queue", "kth largest", "merge k lists"],
-    "trees": ["tree", "binary tree", "binary search tree", "bst"],
-    "graphs": ["graph", "adjacency", "dfs", "bfs", "topological"],
-    "dynamic programming": ["dp", "dynamic programming", "memo", "tabulation", "knapsack"],
-    "greedy": ["greedy", "interval", "activity selection"],
-    "backtracking": ["backtrack", "permutation", "combination", "subset"],
-    "bit manipulation": ["bit", "xor", "and", "or", "mask", "single number"],
-    "math / number theory": ["prime", "gcd", "lcm", "factorial", "fibonacci"],
+    "arrays": [
+        "array", "subarray", "matrix", "two sum", "maximum subarray",
+        "prefix sum", "sliding window", "rotate array", "merge intervals",
+        "sort colors", "product of array except self"
+    ],
+    "strings": [
+        "string", "substring", "palindrome", "longest common prefix",
+        "anagram", "regex", "string matching", "encode", "decode",
+        "compress", "valid parentheses", "reorder"
+    ],
+    "linked list": [
+        "linked list", "singly linked list", "doubly linked list",
+        "reverse linked list", "merge k lists", "cycle", "palindrome list"
+    ],
+    "stacks & queues": [
+        "stack", "queue", "deque", "min stack", "valid parentheses",
+        "sliding window maximum", "largest rectangle", "circular queue"
+    ],
+    "hashing": [
+        "hash", "hashmap", "hash set", "dictionary", "two sum",
+        "group anagrams", "contains duplicate", "subarray sum"
+    ],
+    "heaps / priority queues": [
+        "heap", "priority queue", "kth largest", "merge k lists",
+        "top k frequent", "sliding window median"
+    ],
+    "trees": [
+        "tree", "binary tree", "binary search tree", "bst", "preorder",
+        "inorder", "postorder", "level order", "height", "diameter",
+        "lowest common ancestor", "symmetric tree", "path sum"
+    ],
+    "graphs": [
+        "graph", "adjacency", "dfs", "bfs", "topological", "dijkstra",
+        "floyd", "kruskal", "prim", "connected component", "cycle",
+        "bipartite", "shortest path"
+    ],
+    "dynamic programming": [
+        "dp", "dynamic programming", "memo", "tabulation", "knapsack",
+        "climbing stairs", "house robber", "coin change", "longest increasing subsequence",
+        "edit distance", "word break", "partition", "matrix chain"
+    ],
+    "greedy": [
+        "greedy", "interval", "activity selection", "minimum spanning",
+        "fractional knapsack", "huffman", "rearrange", "jump game"
+    ],
+    "backtracking": [
+        "backtrack", "permutation", "combination", "subset", "n-queens",
+        "sudoku", "word search", "generate parentheses", "letter case"
+    ],
+    "bit manipulation": [
+        "bit", "xor", "and", "or", "mask", "single number",
+        "count bits", "power of two", "subsets"
+    ],
+    "math / number theory": [
+        "prime", "gcd", "lcm", "factorial", "fibonacci", "mod",
+        "combinatorics", "pascal", "permutation", "combination"
+    ],
+    "sliding window": [
+        "sliding window", "max", "min", "sum", "substring", "subarray",
+        "longest", "window"
+    ],
+    "two pointers": [
+        "two pointers", "left", "right", "pair sum", "triplet", "sorted array",
+        "reverse", "partition", "container", "intersection"
+    ],
+    "intervals": [
+        "interval", "merge", "overlap", "insert interval", "meeting rooms",
+        "non-overlapping", "sort intervals"
+    ],
+    "design / system design": [
+        "design", "LRU", "cache", "queue", "stack", "database",
+        "serializer", "iterator", "heap", "deque"
+    ]
+
 }
 
 def infer_topic(title):
+    """
+    Infer topic from problem title using TOPIC_KEYWORDS mapping.
+    Returns 'misc' if no keyword matches.
+    """
     title_lower = title.lower()
     for topic, keywords in TOPIC_KEYWORDS.items():
         if any(kw in title_lower for kw in keywords):
             return topic
     return "misc"
 
-# ------------------- CSV INGEST -------------------
 def get_company_csv_files(target_companies):
     headers = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
     response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
@@ -108,6 +176,7 @@ def ingest_csv_from_url(url, collection, company):
     try:
         df = pd.read_csv(url)
         df.columns = [c.strip() for c in df.columns]
+
         inserted = 0
         for _, row in df.iterrows():
             problem = {
@@ -120,14 +189,17 @@ def ingest_csv_from_url(url, collection, company):
                 "company_tags": [company]
             }
             if problem["title"] and problem["link"]:
-                collection.update_one(
+                result = collection.update_one(
                     {"title": problem["title"]},
                     {"$set": problem},
                     upsert=True
                 )
-                inserted += 1
+                if result.upserted_id:
+                    inserted += 1
+
         logging.info(f"✅ Inserted {inserted} new problems for {company} from {url}")
         return inserted
+
     except Exception as e:
         logging.error(f"❌ Failed to ingest {url}: {e}")
         return 0
@@ -174,13 +246,16 @@ company_skills = {
     "netflix": "java python scala microservices cloud streaming recommendation systems ai"
 }
 
+
 overall_text = " ".join(list(role_skills.values()) + list(company_skills.values()))
 
 def extract_text_from_pdf_safe(file_path):
     text = ""
     with fitz.open(file_path) as doc:
         for page in doc:
-            text += page.get_text("text").lower() + " "
+            content = page.get_text("text")
+            if content:
+                text += content.lower() + " "
     return text
 
 def extract_text_from_docx_safe(file_path):
@@ -194,51 +269,282 @@ def calculate_similarity(resume_text, reference_text):
     tfidf = vectorizer.fit_transform([resume_text, reference_text])
     return round(cosine_similarity(tfidf[0:1], tfidf[1:2])[0][0] * 100, 2)
 
+# ------------------- COMPANY QUIZ -------------------
+
+# Initialize companies with 0 scores based on company_skills keys
+companies = {c: 0 for c in company_skills.keys()}
+
+
+rules = {
+    "work_style": {
+        "A": ["amazon", "google", "meta"],
+        "B": ["paypal", "apple", "linkedin"],
+        "C": ["microsoft", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+    },
+    "tech_interest": {
+        "A": ["amazon", "google", "meta"],
+        "B": ["paypal", "apple", "linkedin"],
+        "C": ["microsoft", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+        "E": []  # if you want E option to exist but no companies, keep empty
+    },
+    "career_goal": {
+        "A": ["amazon", "google", "paypal"],
+        "B": ["meta", "microsoft", "apple"],
+        "C": ["linkedin", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+    },
+    "skills_focus": {
+        "A": ["amazon", "google", "paypal"],
+        "B": ["meta", "microsoft", "apple"],
+        "C": ["linkedin", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+        "E": []
+    },
+    "culture": {
+        "A": ["amazon", "google", "meta"],
+        "B": ["paypal", "apple", "linkedin"],
+        "C": ["microsoft", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+    },
+    "salary": {
+        "A": ["amazon", "google", "paypal"],
+        "B": ["meta", "microsoft", "apple"],
+        "C": ["linkedin", "netflix"],
+        "D": ["airbnb", "adobe", "doordash"],
+    }
+}
+
+
+def recommend_company(answers):
+    scores = {c: 0 for c in companies.keys()}
+    for q, ans in answers.items():
+        if q in rules and ans in rules[q]:
+            for company in rules[q][ans]:
+                scores[company] += 1
+    best_company = max(scores, key=scores.get)
+    return best_company, scores
+
 # ------------------- ROUTES -------------------
 @app.route("/")
 def home():
     return render_template("home.html", show_sidebar=True)
 
+@app.route("/quiz_home")
+def quiz_home():
+    return render_template("quiz_home.html", show_sidebar=True)
+
+@app.route("/quiz")
+def quiz():
+    return render_template("quiz.html", show_sidebar=True)
+
+@app.route("/ingest_companies_dynamic")
+def ingest_companies_dynamic():
+    print("🚀 Ingest route hit", flush=True)
+    thread = threading.Thread(target=ingest_company_files, daemon=True)
+    thread.start()
+    return jsonify({
+        "status": "success",
+        "message":         "Ingestion started in background. Check logs for progress."
+    })
+
+@app.route("/about")
+def about():
+    return render_template("about.html", show_sidebar=False)
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = users.find_one({"username": form.username.data})
+        if user and bcrypt.check_password_hash(user["password"], form.password.data):
+            flash("Login successful!", "success")
+            session["username"] = user["username"]
+            session["email"] = user["email"]  # Store email for completed questions
+
+            # Initialize completed_questions if not present
+            if "completed_questions" not in user:
+                users.update_one(
+                    {"email": user["email"]},
+                    {"$set": {"completed_questions": {}}}
+                )
+
+            return redirect(url_for("home"))
+
+        flash("Invalid username or password", "danger")
+    return render_template("login.html", form=form)
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        hashed_password = bcrypt.generate_password_hash(form.password.data).decode("utf-8")
+        users.insert_one({
+            "username": form.username.data,
+            "email": form.email.data,
+            "password": hashed_password
+        })
+        flash("Account created! You can now log in.", "success")
+        return redirect(url_for("login"))
+    return render_template("register.html", form=form)
+
+@app.route("/quiz/company", methods=["GET", "POST"])
+def company_quiz():
+    if request.method == "POST":
+        answers = {
+            "work_style": request.form.get("work_style"),
+            "tech_interest": request.form.get("tech_interest"),
+            "career_goal": request.form.get("career_goal"),
+            "skills_focus": request.form.get("skills_focus"),
+            "culture": request.form.get("culture"),
+            "salary": request.form.get("salary")
+        }
+        company, scores = recommend_company(answers)
+        session["last_company"] = company
+        session["last_scores"] = scores
+        return redirect(url_for("company_results"))
+    return render_template("company_quiz.html", show_sidebar=True)
+
+@app.route("/quiz/company/results")
+def company_results():
+    company = session.get("last_company")
+    scores = session.get("last_scores", {})
+    return render_template(
+        "company_results.html",
+        company=company,
+        scores=scores,
+        show_sidebar=True
+    )
+
+@app.route("/quiz/role")
+def role_quiz():
+    return render_template("quiz.html", show_sidebar=True)
+
+@app.route("/resume_checker", methods=["GET", "POST"])
+def resume_checker():
+    if request.method == "POST":
+        role = request.form.get("role")
+        company = request.form.get("company")
+        file = request.files.get("resume")
+
+        if not file or not allowed_file(file.filename):
+            return render_template("resume_checker.html", error="Upload PDF/DOCX under 5 MB")
+
+        filename = secure_filename(file.filename)
+        os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+        save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        file.save(save_path)
+
+        try:
+            if filename.endswith(".pdf"):
+                resume_text = extract_text_from_pdf_safe(save_path)
+            else:
+                resume_text = extract_text_from_docx_safe(save_path)
+
+            role_score = calculate_similarity(resume_text, role_skills.get(role, ""))
+            company_score = calculate_similarity(resume_text, company_skills.get(company, ""))
+            overall_score = calculate_similarity(resume_text, overall_text)
+            os.remove(save_path)
+
+            return render_template(
+                "resume_checker.html",
+                role=role,
+                company=company,
+                role_score=role_score,
+                company_score=company_score,
+                overall_score=overall_score
+            )
+
+        except Exception as e:
+            if os.path.exists(save_path):
+                os.remove(save_path)
+            return render_template("resume_checker.html", error=f"Error processing file: {str(e)}")
+
+    return render_template("resume_checker.html")
+
+@app.route("/save_results", methods=["POST"])
+def save_results():
+    data = request.json
+    user_email = data.get("email")
+    if not user_email:
+        return jsonify({"status": "error", "message": "No user email provided"}), 400
+
+    users.update_one(
+        {"email": user_email},
+        {"$set": {
+            "answers": data.get("answers"),
+            "preferred_role": data.get("preferred"),
+            "suggested_role": data.get("suggested"),
+            "final_message": data.get("finalMessage"),
+            "dream_company": data.get("dreamCompany", "Unknown")
+        }},
+        upsert=True
+    )
+    return jsonify({"status": "success"})
+
 @app.route("/roadmap")
 def roadmap():
+    """
+    Render the roadmap creation page.
+    User selects target company, number of weeks, and hours per week.
+    """
     return render_template(
         "roadmap.html",
         show_sidebar=True,
-        companies_list=TARGET_COMPANIES,
-        topics_list=list(TOPIC_KEYWORDS.keys()),
-        roadmap=None
+        companies_list=TARGET_COMPANIES,  # list of companies
+        topics_list=TOPICS_LIST,          # list of topics / topic keywords
+        roadmap=None                       # initially no roadmap generated
     )
+
+
+from random import shuffle
+
+# Map difficulty to expected minutes per question
+DIFFICULTY_TIME = {
+    "easy": 10,
+    "medium": 20,
+    "hard": 40
+}
 
 @app.route("/generate_roadmap", methods=["POST"])
 def generate_roadmap():
     try:
-        company = request.form.get("company", "").lower()
         weeks = int(request.form.get("weeks", 0))
         hours_per_week = int(request.form.get("hours_per_week", 0))
-        selected_topics = request.form.getlist("topics")
+        selected_topics = request.form.getlist("topics")  # Get selected topics
 
-        if not company or weeks <= 0 or hours_per_week <= 0:
+        if weeks <= 0 or hours_per_week <= 0:
             flash("Please fill all fields correctly.", "danger")
             return redirect(url_for("roadmap"))
 
-        company_problems = list(problems.find({"company_tags": company, "title": {"$ne": ""}}))
+        # Fetch all problems (ignore company)
         all_problems = list(problems.find({"title": {"$ne": ""}}))
 
+        # Filter problems by selected topics if any
         if selected_topics:
-            company_problems = [p for p in company_problems if infer_topic(p.get("title", "")) in selected_topics]
-            all_problems = [p for p in all_problems if infer_topic(p.get("title", "")) in selected_topics]
+            all_problems = [
+                p for p in all_problems if infer_topic(p.get("title", "")) in selected_topics
+            ]
 
-        if not company_problems:
-            flash(f"No problems found for {company.capitalize()} with selected topics.", "warning")
         if not all_problems:
             flash("No problems found for selected topics.", "warning")
             return redirect(url_for("roadmap"))
 
-        shuffle(company_problems)
+        # Shuffle questions to add variety
         shuffle(all_problems)
 
-        DIFFICULTY_TIME = {"easy": 10, "medium": 20, "hard": 40}
+        # Weekly time budget in minutes
         minutes_per_week = hours_per_week * 60
+
+        # Fetch user's completed questions from DB
+        user_email = session.get("email")
+        completed = {}
+        if user_email:
+            user = users.find_one({"email": user_email})
+            if user and "completed_questions" in user:
+                completed = user["completed_questions"]
+
         roadmap = {}
         problem_index = 0
 
@@ -246,8 +552,8 @@ def generate_roadmap():
             week_tasks = []
             used_minutes = 0
 
-            while used_minutes < minutes_per_week and problem_index < len(company_problems):
-                prob = company_problems[problem_index]
+            while used_minutes < minutes_per_week and problem_index < len(all_problems):
+                prob = all_problems[problem_index]
                 difficulty = prob.get("difficulty", "medium").lower()
                 expected_time = DIFFICULTY_TIME.get(difficulty, 20)
                 topic = infer_topic(prob.get("title", ""))
@@ -258,22 +564,22 @@ def generate_roadmap():
                         "link": prob.get("link", "#"),
                         "difficulty": difficulty,
                         "expected_time_min": expected_time,
-                        "topic": topic
+                        "topic": topic,
+                        "completed": completed.get(prob.get("title", ""), False)
                     })
                     used_minutes += expected_time
                     problem_index += 1
                 else:
-                    break
+                    break  # stop adding more questions for this week
 
             roadmap[week_num] = week_tasks
 
         return render_template(
             "roadmap.html",
             show_sidebar=True,
-            companies_list=TARGET_COMPANIES,
-            topics_list=list(TOPIC_KEYWORDS.keys()),
+            companies_list=TARGET_COMPANIES,  # optional for sidebar
+            topics_list=TOPICS_LIST,
             roadmap=roadmap,
-            selected_company=company,
             selected_topics=selected_topics
         )
 
@@ -282,7 +588,88 @@ def generate_roadmap():
         flash("Something went wrong while generating the roadmap.", "danger")
         return redirect(url_for("roadmap"))
 
+@app.route("/toggle_completed", methods=["POST"])
+def toggle_completed():
+    if "email" not in session:
+        return jsonify({"status": "error", "message": "User not logged in"}), 401
+
+    user_email = session["email"]
+    data = request.json
+    question_title = data.get("title")
+
+    if not question_title:
+        return jsonify({"status": "error", "message": "No question title provided"}), 400
+
+    # Fetch existing completed questions
+    user = users.find_one({"email": user_email})
+    completed = user.get("completed_questions", {}) if user else {}
+
+    # Toggle completed status
+    current_status = completed.get(question_title, False)
+    completed[question_title] = not current_status
+
+    # Update in DB
+    users.update_one(
+        {"email": user_email},
+        {"$set": {"completed_questions": completed}},
+        upsert=True
+    )
+
+    return jsonify({
+        "status": "success",
+        "title": question_title,
+        "completed": completed[question_title]
+    })
+
+
+@app.route("/self_confidence")
+def self_confidence():
+    return render_template("self_confidence.html", show_sidebar=True)
+
+@app.route("/company_specific")
+def company_specific():
+    return render_template("company_specific.html", companies=TARGET_COMPANIES, show_sidebar=True)
+
+# ------------------- CHATBOT -------------------
+from google import genai
+
+# Initialize Gemini client with API key
+chatbot_client = genai.Client(api_key=GEMINI_API_KEY)
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    user_message = request.json.get("message", "")
+
+    prompt = f"""
+    You are an AI Placement Guidance Chatbot for engineering students.
+    User: "{user_message}"
+    Provide guidance about placements, companies, skills, and interview tips.
+    """
+
+    try:
+        response = chatbot_client.models.generate_content(
+            model="models/gemini-2.5-flash",
+            contents=prompt
+        )
+        reply = response.text.strip()
+    except Exception as e:
+        reply = f"Error: {str(e)}"
+
+    return jsonify({"reply": reply})
+
+@app.route("/company/<company_name>")
+def company_questions(company_name):
+    company_name = company_name.lower()
+    company_problems = list(problems.find({"company_tags": company_name}, {"_id": 0}))
+    return render_template(
+        "company_questions.html",
+        company=company_name,
+        problems=company_problems,
+        show_sidebar=True
+    )
+
 # ------------------- MAIN -------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
