@@ -81,7 +81,7 @@ TOPIC_KEYWORDS = {
         "anagram", "regex", "string matching", "encode", "decode",
         "compress", "valid parentheses", "reorder"
     ],
-    "linked list": [
+    "linked lists": [
         "linked list", "singly linked list", "doubly linked list",
         "reverse linked list", "merge k lists", "cycle", "palindrome list"
     ],
@@ -361,17 +361,7 @@ def login():
         if user and bcrypt.check_password_hash(user["password"], form.password.data):
             flash("Login successful!", "success")
             session["username"] = user["username"]
-            session["email"] = user["email"]  # Store email for completed questions
-
-            # Initialize completed_questions if not present
-            if "completed_questions" not in user:
-                users.update_one(
-                    {"email": user["email"]},
-                    {"$set": {"completed_questions": {}}}
-                )
-
             return redirect(url_for("home"))
-
         flash("Invalid username or password", "danger")
     return render_template("login.html", form=form)
 
@@ -510,40 +500,43 @@ DIFFICULTY_TIME = {
 @app.route("/generate_roadmap", methods=["POST"])
 def generate_roadmap():
     try:
+        company = request.form.get("company", "").lower()
         weeks = int(request.form.get("weeks", 0))
         hours_per_week = int(request.form.get("hours_per_week", 0))
         selected_topics = request.form.getlist("topics")  # Get selected topics
 
+        if not company or weeks <= 0 or hours_per_week <= 0:
         if weeks <= 0 or hours_per_week <= 0:
             flash("Please fill all fields correctly.", "danger")
             return redirect(url_for("roadmap"))
 
+        # Fetch all problems for the selected company
+        company_problems = list(problems.find(
+            {"company_tags": company, "title": {"$ne": ""}}
+        ))
         # Fetch all problems (ignore company)
         all_problems = list(problems.find({"title": {"$ne": ""}}))
 
         # Filter problems by selected topics if any
         if selected_topics:
+            company_problems = [
+                p for p in company_problems if infer_topic(p.get("title", "")) in selected_topics
             all_problems = [
                 p for p in all_problems if infer_topic(p.get("title", "")) in selected_topics
             ]
 
+        if not company_problems:
+            flash(f"No problems found for {company.capitalize()} with selected topics.", "warning")
         if not all_problems:
             flash("No problems found for selected topics.", "warning")
             return redirect(url_for("roadmap"))
 
         # Shuffle questions to add variety
+        shuffle(company_problems)
         shuffle(all_problems)
 
         # Weekly time budget in minutes
         minutes_per_week = hours_per_week * 60
-
-        # Fetch user's completed questions from DB
-        user_email = session.get("email")
-        completed = {}
-        if user_email:
-            user = users.find_one({"email": user_email})
-            if user and "completed_questions" in user:
-                completed = user["completed_questions"]
 
         roadmap = {}
         problem_index = 0
@@ -552,6 +545,8 @@ def generate_roadmap():
             week_tasks = []
             used_minutes = 0
 
+            while used_minutes < minutes_per_week and problem_index < len(company_problems):
+                prob = company_problems[problem_index]
             while used_minutes < minutes_per_week and problem_index < len(all_problems):
                 prob = all_problems[problem_index]
                 difficulty = prob.get("difficulty", "medium").lower()
@@ -564,8 +559,7 @@ def generate_roadmap():
                         "link": prob.get("link", "#"),
                         "difficulty": difficulty,
                         "expected_time_min": expected_time,
-                        "topic": topic,
-                        "completed": completed.get(prob.get("title", ""), False)
+                        "topic": topic
                     })
                     used_minutes += expected_time
                     problem_index += 1
@@ -577,9 +571,11 @@ def generate_roadmap():
         return render_template(
             "roadmap.html",
             show_sidebar=True,
-            companies_list=TARGET_COMPANIES,  # optional for sidebar
+            companies_list=TARGET_COMPANIES,
+            companies_list=TARGET_COMPANIES,  # still keep for sidebar or other use
             topics_list=TOPICS_LIST,
             roadmap=roadmap,
+            selected_company=company,
             selected_topics=selected_topics
         )
 
@@ -587,39 +583,6 @@ def generate_roadmap():
         logging.error(f"Error generating roadmap: {e}")
         flash("Something went wrong while generating the roadmap.", "danger")
         return redirect(url_for("roadmap"))
-
-@app.route("/toggle_completed", methods=["POST"])
-def toggle_completed():
-    if "email" not in session:
-        return jsonify({"status": "error", "message": "User not logged in"}), 401
-
-    user_email = session["email"]
-    data = request.json
-    question_title = data.get("title")
-
-    if not question_title:
-        return jsonify({"status": "error", "message": "No question title provided"}), 400
-
-    # Fetch existing completed questions
-    user = users.find_one({"email": user_email})
-    completed = user.get("completed_questions", {}) if user else {}
-
-    # Toggle completed status
-    current_status = completed.get(question_title, False)
-    completed[question_title] = not current_status
-
-    # Update in DB
-    users.update_one(
-        {"email": user_email},
-        {"$set": {"completed_questions": completed}},
-        upsert=True
-    )
-
-    return jsonify({
-        "status": "success",
-        "title": question_title,
-        "completed": completed[question_title]
-    })
 
 
 @app.route("/self_confidence")
@@ -672,4 +635,3 @@ def company_questions(company_name):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-

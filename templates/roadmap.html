@@ -6,16 +6,17 @@
 
   <!-- Roadmap Form -->
   <form id="roadmap-form" method="POST" action="{{ url_for('generate_roadmap') }}" class="card p-4 shadow-sm">
+
     <!-- Weeks Input -->
     <div class="form-group mb-3">
       <label for="weeks" class="form-label fw-bold">Number of Weeks:</label>
-      <input type="number" name="weeks" id="weeks" min="1" required class="form-control" placeholder="e.g. 6" value="{{ request.form.weeks }}">
+      <input type="number" name="weeks" id="weeks" min="1" required class="form-control" placeholder="e.g. 6">
     </div>
 
     <!-- Hours Input -->
     <div class="form-group mb-3">
       <label for="hours_per_week" class="form-label fw-bold">Hours per Week:</label>
-      <input type="number" name="hours_per_week" id="hours_per_week" min="1" required class="form-control" placeholder="e.g. 10" value="{{ request.form.hours_per_week }}">
+      <input type="number" name="hours_per_week" id="hours_per_week" min="1" required class="form-control" placeholder="e.g. 10">
     </div>
 
     <!-- Topics -->
@@ -25,8 +26,7 @@
         {% for topic in topics_list %}
         <div class="col-md-4 col-sm-6 mb-2">
           <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="topics" value="{{ topic }}" id="topic_{{ loop.index }}"
-            {% if topic in selected_topics %}checked{% endif %}>
+            <input class="form-check-input" type="checkbox" name="topics" value="{{ topic }}" id="topic_{{ loop.index }}">
             <label class="form-check-label" for="topic_{{ loop.index }}">
               {{ topic | title }}
             </label>
@@ -53,24 +53,13 @@
     <ul class="list-group list-group-flush">
       {% for task in tasks %}
       <li class="list-group-item d-flex justify-content-between align-items-center">
-        <div>
-          <strong>{{ task["title"] }}</strong>
+        <span>
+          <strong>{{ task["question"] }}</strong>
           <small class="text-muted">({{ task["topic"] | title }})</small>
-          <div class="mt-1">
-            <span>Timer: </span>
-            <span class="timer" data-title="{{ task['title'] }}">00:00</span>
-            <button class="btn btn-sm btn-outline-success start-timer">Start</button>
-            <button class="btn btn-sm btn-outline-danger stop-timer">Stop</button>
-          </div>
-        </div>
-        <div class="d-flex gap-2">
-          {% if task["link"] %}
-          <a href="{{ task['link'] }}" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
-          {% endif %}
-          <button class="btn btn-sm toggle-completed {% if session.get('completed_questions', {}).get(task['title']) %}btn-success{% else %}btn-outline-success{% endif %}" data-title="{{ task['title'] }}">
-            {% if session.get('completed_questions', {}).get(task['title']) %}Completed{% else %}Mark Completed{% endif %}
-          </button>
-        </div>
+        </span>
+        {% if task["link"] %}
+        <a href="{{ task['link'] }}" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
+        {% endif %}
       </li>
       {% endfor %}
     </ul>
@@ -78,60 +67,5 @@
   {% endfor %}
   {% endif %}
 </div>
-
-<script>
-// Timer logic
-let timers = {};
-document.querySelectorAll(".start-timer").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const li = btn.closest("li");
-    const title = li.querySelector(".timer").dataset.title;
-    if (!timers[title]) timers[title] = { seconds: 0, interval: null };
-    if (!timers[title].interval) {
-      timers[title].interval = setInterval(() => {
-        timers[title].seconds++;
-        const m = String(Math.floor(timers[title].seconds / 60)).padStart(2,'0');
-        const s = String(timers[title].seconds % 60).padStart(2,'0');
-        li.querySelector(".timer").textContent = `${m}:${s}`;
-      }, 1000);
-    }
-  });
-});
-
-document.querySelectorAll(".stop-timer").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const li = btn.closest("li");
-    const title = li.querySelector(".timer").dataset.title;
-    if (timers[title] && timers[title].interval) {
-      clearInterval(timers[title].interval);
-      timers[title].interval = null;
-    }
-  });
-});
-
-// Toggle completed
-document.querySelectorAll(".toggle-completed").forEach(btn => {
-  btn.addEventListener("click", async () => {
-    const title = btn.dataset.title;
-    const res = await fetch("{{ url_for('toggle_completed') }}", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title })
-    });
-    const data = await res.json();
-    if (data.status === "success") {
-      if (data.completed) {
-        btn.classList.remove("btn-outline-success");
-        btn.classList.add("btn-success");
-        btn.textContent = "Completed";
-      } else {
-        btn.classList.remove("btn-success");
-        btn.classList.add("btn-outline-success");
-        btn.textContent = "Mark Completed";
-      }
-    }
-  });
-});
-</script>
 
 {% endblock %}
