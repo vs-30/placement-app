@@ -65,6 +65,98 @@ TARGET_COMPANIES = [
     "amazon", "adobe", "airbnb", "apple", "cisco", "doordash", "paypal",
     "facebook", "goldman", "google", "linkedin", "meta", "microsoft", "netflix"
 ]
+TOPICS_LIST = [
+    "arrays", "strings", "linked list", "stack", "queue", "recursion",
+    "dynamic programming", "greedy", "graphs", "trees", "heaps",
+    "backtracking", "binary search", "math", "bit manipulation"
+]
+TOPIC_KEYWORDS = {
+    "arrays": [
+        "array", "subarray", "matrix", "two sum", "maximum subarray",
+        "prefix sum", "sliding window", "rotate array", "merge intervals",
+        "sort colors", "product of array except self"
+    ],
+    "strings": [
+        "string", "substring", "palindrome", "longest common prefix",
+        "anagram", "regex", "string matching", "encode", "decode",
+        "compress", "valid parentheses", "reorder"
+    ],
+    "linked lists": [
+        "linked list", "singly linked list", "doubly linked list",
+        "reverse linked list", "merge k lists", "cycle", "palindrome list"
+    ],
+    "stacks & queues": [
+        "stack", "queue", "deque", "min stack", "valid parentheses",
+        "sliding window maximum", "largest rectangle", "circular queue"
+    ],
+    "hashing": [
+        "hash", "hashmap", "hash set", "dictionary", "two sum",
+        "group anagrams", "contains duplicate", "subarray sum"
+    ],
+    "heaps / priority queues": [
+        "heap", "priority queue", "kth largest", "merge k lists",
+        "top k frequent", "sliding window median"
+    ],
+    "trees": [
+        "tree", "binary tree", "binary search tree", "bst", "preorder",
+        "inorder", "postorder", "level order", "height", "diameter",
+        "lowest common ancestor", "symmetric tree", "path sum"
+    ],
+    "graphs": [
+        "graph", "adjacency", "dfs", "bfs", "topological", "dijkstra",
+        "floyd", "kruskal", "prim", "connected component", "cycle",
+        "bipartite", "shortest path"
+    ],
+    "dynamic programming": [
+        "dp", "dynamic programming", "memo", "tabulation", "knapsack",
+        "climbing stairs", "house robber", "coin change", "longest increasing subsequence",
+        "edit distance", "word break", "partition", "matrix chain"
+    ],
+    "greedy": [
+        "greedy", "interval", "activity selection", "minimum spanning",
+        "fractional knapsack", "huffman", "rearrange", "jump game"
+    ],
+    "backtracking": [
+        "backtrack", "permutation", "combination", "subset", "n-queens",
+        "sudoku", "word search", "generate parentheses", "letter case"
+    ],
+    "bit manipulation": [
+        "bit", "xor", "and", "or", "mask", "single number",
+        "count bits", "power of two", "subsets"
+    ],
+    "math / number theory": [
+        "prime", "gcd", "lcm", "factorial", "fibonacci", "mod",
+        "combinatorics", "pascal", "permutation", "combination"
+    ],
+    "sliding window": [
+        "sliding window", "max", "min", "sum", "substring", "subarray",
+        "longest", "window"
+    ],
+    "two pointers": [
+        "two pointers", "left", "right", "pair sum", "triplet", "sorted array",
+        "reverse", "partition", "container", "intersection"
+    ],
+    "intervals": [
+        "interval", "merge", "overlap", "insert interval", "meeting rooms",
+        "non-overlapping", "sort intervals"
+    ],
+    "design / system design": [
+        "design", "LRU", "cache", "queue", "stack", "database",
+        "serializer", "iterator", "heap", "deque"
+    ]
+
+}
+
+def infer_topic(title):
+    """
+    Infer topic from problem title using TOPIC_KEYWORDS mapping.
+    Returns 'misc' if no keyword matches.
+    """
+    title_lower = title.lower()
+    for topic, keywords in TOPIC_KEYWORDS.items():
+        if any(kw in title_lower for kw in keywords):
+            return topic
+    return "misc"
 
 def get_company_csv_files(target_companies):
     headers = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
@@ -383,7 +475,104 @@ def save_results():
 
 @app.route("/roadmap")
 def roadmap():
-    return render_template("roadmap.html", show_sidebar=True)
+    """
+    Render the roadmap creation page.
+    User selects target company, number of weeks, and hours per week.
+    """
+    return render_template(
+        "roadmap.html",
+        show_sidebar=True,
+        companies_list=TARGET_COMPANIES,  # list of companies
+        topics_list=TOPICS_LIST,          # list of topics / topic keywords
+        roadmap=None                       # initially no roadmap generated
+    )
+
+
+from random import shuffle
+
+# Map difficulty to expected minutes per question
+DIFFICULTY_TIME = {
+    "easy": 10,
+    "medium": 20,
+    "hard": 40
+}
+
+@app.route("/generate_roadmap", methods=["POST"])
+def generate_roadmap():
+    try:
+        company = request.form.get("company", "").lower()
+        weeks = int(request.form.get("weeks", 0))
+        hours_per_week = int(request.form.get("hours_per_week", 0))
+        selected_topics = request.form.getlist("topics")  # Get selected topics
+
+        if not company or weeks <= 0 or hours_per_week <= 0:
+            flash("Please fill all fields correctly.", "danger")
+            return redirect(url_for("roadmap"))
+
+        # Fetch all problems for the selected company
+        company_problems = list(problems.find(
+            {"company_tags": company, "title": {"$ne": ""}}
+        ))
+
+        # Filter problems by selected topics if any
+        if selected_topics:
+            company_problems = [
+                p for p in company_problems if infer_topic(p.get("title", "")) in selected_topics
+            ]
+
+        if not company_problems:
+            flash(f"No problems found for {company.capitalize()} with selected topics.", "warning")
+            return redirect(url_for("roadmap"))
+
+        # Shuffle questions to add variety
+        shuffle(company_problems)
+
+        # Weekly time budget in minutes
+        minutes_per_week = hours_per_week * 60
+
+        roadmap = {}
+        problem_index = 0
+
+        for week_num in range(1, weeks + 1):
+            week_tasks = []
+            used_minutes = 0
+
+            while used_minutes < minutes_per_week and problem_index < len(company_problems):
+                prob = company_problems[problem_index]
+                difficulty = prob.get("difficulty", "medium").lower()
+                expected_time = DIFFICULTY_TIME.get(difficulty, 20)
+                topic = infer_topic(prob.get("title", ""))
+
+                if used_minutes + expected_time <= minutes_per_week:
+                    week_tasks.append({
+                        "title": prob.get("title", "Unknown"),
+                        "link": prob.get("link", "#"),
+                        "difficulty": difficulty,
+                        "expected_time_min": expected_time,
+                        "topic": topic
+                    })
+                    used_minutes += expected_time
+                    problem_index += 1
+                else:
+                    break  # stop adding more questions for this week
+
+            roadmap[week_num] = week_tasks
+
+        return render_template(
+            "roadmap.html",
+            show_sidebar=True,
+            companies_list=TARGET_COMPANIES,
+            topics_list=TOPICS_LIST,
+            roadmap=roadmap,
+            selected_company=company,
+            selected_topics=selected_topics
+        )
+
+    except Exception as e:
+        logging.error(f"Error generating roadmap: {e}")
+        flash("Something went wrong while generating the roadmap.", "danger")
+        return redirect(url_for("roadmap"))
+
 
 @app.route("/self_confidence")
 def self_confidence():

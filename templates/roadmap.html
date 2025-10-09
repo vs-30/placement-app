@@ -1,5 +1,71 @@
 {% extends "layout.html" %}
 {% block content %}
-<h1>Roadmap Page</h1>
-<p>Your coding roadmap will appear here.</p>
+
+<div class="container mt-4">
+  <h1 class="mb-4 text-primary">🧭 Personalized Coding Roadmap</h1>
+
+  <!-- Roadmap Form -->
+  <form id="roadmap-form" method="POST" action="{{ url_for('generate_roadmap') }}" class="card p-4 shadow-sm">
+
+    <!-- Weeks Input -->
+    <div class="form-group mb-3">
+      <label for="weeks" class="form-label fw-bold">Number of Weeks:</label>
+      <input type="number" name="weeks" id="weeks" min="1" required class="form-control" placeholder="e.g. 6">
+    </div>
+
+    <!-- Hours Input -->
+    <div class="form-group mb-3">
+      <label for="hours_per_week" class="form-label fw-bold">Hours per Week:</label>
+      <input type="number" name="hours_per_week" id="hours_per_week" min="1" required class="form-control" placeholder="e.g. 10">
+    </div>
+
+    <!-- Topics -->
+    <div class="form-group mb-3">
+      <label class="form-label fw-bold">Choose Topics to Focus On:</label>
+      <div class="row">
+        {% for topic in topics_list %}
+        <div class="col-md-4 col-sm-6 mb-2">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="topics" value="{{ topic }}" id="topic_{{ loop.index }}">
+            <label class="form-check-label" for="topic_{{ loop.index }}">
+              {{ topic | title }}
+            </label>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <button type="submit" class="btn btn-primary mt-3 w-100">Generate Roadmap</button>
+  </form>
+
+  <!-- Roadmap Display -->
+  {% if roadmap %}
+  <hr class="my-5">
+  <h3 class="text-success">📅 Week-Wise Learning Plan</h3>
+
+  {% for week, tasks in roadmap.items() %}
+  <div class="card mt-3 shadow-sm">
+    <div class="card-header bg-info text-white fw-bold">
+      Week {{ week }}
+    </div>
+    <ul class="list-group list-group-flush">
+      {% for task in tasks %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <span>
+          <strong>{{ task["title"] }}</strong>
+          <small class="text-muted">({{ task["topic"] | title }})</small>
+        </span>
+        {% if task["link"] %}
+        <a href="{{ task['link'] }}" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+
 {% endblock %}
