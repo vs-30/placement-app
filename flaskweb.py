@@ -500,32 +500,29 @@ DIFFICULTY_TIME = {
 @app.route("/generate_roadmap", methods=["POST"])
 def generate_roadmap():
     try:
-        company = request.form.get("company", "").lower()
         weeks = int(request.form.get("weeks", 0))
         hours_per_week = int(request.form.get("hours_per_week", 0))
         selected_topics = request.form.getlist("topics")  # Get selected topics
 
-        if not company or weeks <= 0 or hours_per_week <= 0:
+        if weeks <= 0 or hours_per_week <= 0:
             flash("Please fill all fields correctly.", "danger")
             return redirect(url_for("roadmap"))
 
-        # Fetch all problems for the selected company
-        company_problems = list(problems.find(
-            {"company_tags": company, "title": {"$ne": ""}}
-        ))
+        # Fetch all problems (ignore company)
+        all_problems = list(problems.find({"title": {"$ne": ""}}))
 
         # Filter problems by selected topics if any
         if selected_topics:
-            company_problems = [
-                p for p in company_problems if infer_topic(p.get("title", "")) in selected_topics
+            all_problems = [
+                p for p in all_problems if infer_topic(p.get("title", "")) in selected_topics
             ]
 
-        if not company_problems:
-            flash(f"No problems found for {company.capitalize()} with selected topics.", "warning")
+        if not all_problems:
+            flash("No problems found for selected topics.", "warning")
             return redirect(url_for("roadmap"))
 
         # Shuffle questions to add variety
-        shuffle(company_problems)
+        shuffle(all_problems)
 
         # Weekly time budget in minutes
         minutes_per_week = hours_per_week * 60
@@ -537,8 +534,8 @@ def generate_roadmap():
             week_tasks = []
             used_minutes = 0
 
-            while used_minutes < minutes_per_week and problem_index < len(company_problems):
-                prob = company_problems[problem_index]
+            while used_minutes < minutes_per_week and problem_index < len(all_problems):
+                prob = all_problems[problem_index]
                 difficulty = prob.get("difficulty", "medium").lower()
                 expected_time = DIFFICULTY_TIME.get(difficulty, 20)
                 topic = infer_topic(prob.get("title", ""))
@@ -561,10 +558,9 @@ def generate_roadmap():
         return render_template(
             "roadmap.html",
             show_sidebar=True,
-            companies_list=TARGET_COMPANIES,
+            companies_list=TARGET_COMPANIES,  # still keep for sidebar or other use
             topics_list=TOPICS_LIST,
             roadmap=roadmap,
-            selected_company=company,
             selected_topics=selected_topics
         )
 
