@@ -423,32 +423,36 @@ def role_quiz():
 
 @app.route("/submit_time", methods=["POST"])
 def submit_time():
+    """
+    Receive actual time for a question and save for the user.
+    Compare with expected time and add points if exceeded.
+    """
+    user_email = session.get("email")
+    if not user_email:
+        flash("You must be logged in to submit time.", "danger")
+        return redirect(url_for("roadmap"))
+
     week = request.form.get("week")
     topic = request.form.get("topic")
     question = request.form.get("question")
-    difficulty = request.form.get("difficulty")
-    expected_time = int(request.form.get("expected_time"))
-    actual_time = int(request.form.get("actual_time")) // 60  # seconds to minutes
+    expected_time = int(request.form.get("expected_time", 0))
+    actual_time = int(request.form.get("actual_time", 0))
 
-    exceeded = actual_time > expected_time
+    points = 0
+    if actual_time > expected_time:
+        # 1 point per minute over expected
+        points = actual_time - expected_time
 
-    if "time_scores" not in session:
-        session["time_scores"] = {}
-
-    if topic not in session["time_scores"]:
-        session["time_scores"][topic] = 0
-
-    if exceeded:
-        session["time_scores"][topic] += 1
-
-    return render_template(
-        "time_results.html",
-        topic=topic,
-        exceeded=exceeded,
-        actual_time=actual_time,
-        expected_time=expected_time,
-        scores=session["time_scores"]
+    # Update user's topic points in DB
+    users.update_one(
+        {"email": user_email},
+        {"$inc": {f"topic_points.{topic}": points},
+         "$set": {f"completed_questions.{question}": actual_time}},
+        upsert=True
     )
+
+    flash(f"Time for '{question}' saved! You earned {points} point(s) for topic '{topic}'.", "success")
+    return redirect(url_for("roadmap"))
 
 @app.route("/resume_checker", methods=["GET", "POST"])
 def resume_checker():
@@ -516,14 +520,14 @@ def save_results():
 def roadmap():
     """
     Render the roadmap creation page.
-    User selects target company, number of weeks, and hours per week.
+    User selects number of weeks, hours per week, and topics.
     """
     return render_template(
         "roadmap.html",
         show_sidebar=True,
-        companies_list=TARGET_COMPANIES,  # list of companies
-        topics_list=TOPICS_LIST,          # list of topics / topic keywords
-        roadmap=None                       # initially no roadmap generated
+        companies_list=TARGET_COMPANIES,  # optional sidebar
+        topics_list=TOPICS_LIST,
+        roadmap=None  # initially no roadmap generated
     )
 
 
@@ -536,21 +540,30 @@ DIFFICULTY_TIME = {
     "hard": 40
 }
 
+from random import shuffle
+
+# Difficulty to expected minutes mapping
+DIFFICULTY_TIME = {
+    "easy": 15,
+    "medium": 25,
+    "hard": 40
+}
+
 @app.route("/generate_roadmap", methods=["POST"])
 def generate_roadmap():
     try:
         weeks = int(request.form.get("weeks", 0))
         hours_per_week = int(request.form.get("hours_per_week", 0))
-        selected_topics = request.form.getlist("topics")  # Get selected topics
+        selected_topics = request.form.getlist("topics")
 
         if weeks <= 0 or hours_per_week <= 0:
             flash("Please fill all fields correctly.", "danger")
             return redirect(url_for("roadmap"))
 
-        # Fetch all problems (ignore company)
+        # Fetch all problems
         all_problems = list(problems.find({"title": {"$ne": ""}}))
 
-        # Filter problems by selected topics if any
+        # Filter by selected topics
         if selected_topics:
             all_problems = [
                 p for p in all_problems if infer_topic(p.get("title", "")) in selected_topics
@@ -560,13 +573,10 @@ def generate_roadmap():
             flash("No problems found for selected topics.", "warning")
             return redirect(url_for("roadmap"))
 
-        # Shuffle questions to add variety
         shuffle(all_problems)
-
-        # Weekly time budget in minutes
         minutes_per_week = hours_per_week * 60
 
-        # Fetch user's completed questions from DB
+        # Fetch user's completed questions if needed
         user_email = session.get("email")
         completed = {}
         if user_email:
@@ -580,7 +590,6 @@ def generate_roadmap():
         for week_num in range(1, weeks + 1):
             week_tasks = []
             used_minutes = 0
-
             while used_minutes < minutes_per_week and problem_index < len(all_problems):
                 prob = all_problems[problem_index]
                 difficulty = prob.get("difficulty", "medium").lower()
@@ -599,14 +608,14 @@ def generate_roadmap():
                     used_minutes += expected_time
                     problem_index += 1
                 else:
-                    break  # stop adding more questions for this week
+                    break
 
             roadmap[week_num] = week_tasks
 
         return render_template(
             "roadmap.html",
             show_sidebar=True,
-            companies_list=TARGET_COMPANIES,  # optional for sidebar
+            companies_list=TARGET_COMPANIES,
             topics_list=TOPICS_LIST,
             roadmap=roadmap,
             selected_topics=selected_topics
@@ -616,6 +625,7 @@ def generate_roadmap():
         logging.error(f"Error generating roadmap: {e}")
         flash("Something went wrong while generating the roadmap.", "danger")
         return redirect(url_for("roadmap"))
+
 
 @app.route("/toggle_completed", methods=["POST"])
 def toggle_completed():
