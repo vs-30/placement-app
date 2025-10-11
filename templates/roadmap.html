@@ -40,35 +40,39 @@
 <div class="container mt-5">
   <h2 class="text-center mb-4">📅 Your Personalized Roadmap</h2>
 
-  {% for week, questions in roadmap.items() %}
-    <div class="week-section">
-      <div class="week-header">Week {{ week }}</div>
+  {% if roadmap %}
+    {% for week, questions in roadmap.items() %}
+      <div class="week-section">
+        <div class="week-header">Week {{ week }}</div>
 
-      {% for q in questions %}
-        <div class="question-card">
-          <h5>{{ q['title'] }}</h5>
-          <p><strong>Topic:</strong> {{ q['topic'] }} | <strong>Difficulty:</strong> {{ q['difficulty'] }}</p>
-          <p><strong>Expected Time:</strong> {{ q['expected_time_min'] }} min</p>
+        {% for q in questions %}
+          <div class="question-card">
+            <h5>{{ q['title'] }}</h5>
+            <p><strong>Topic:</strong> {{ q['topic'] }} | <strong>Difficulty:</strong> {{ q['difficulty'] }}</p>
+            <p><strong>Expected Time:</strong> {{ q['expected_time_min'] }} min</p>
 
-          <div class="timer" id="timer-{{ week }}-{{ loop.index }}">00:00</div>
+            <div class="timer" id="timer-{{ week }}-{{ loop.index }}">00:00</div>
 
-          <button class="btn btn-start" onclick="startTimer('{{ week }}-{{ loop.index }}')">Start</button>
-          <button class="btn btn-pause" onclick="pauseTimer('{{ week }}-{{ loop.index }}')">Pause / Resume</button>
-          <button class="btn btn-stop" onclick="stopTimer('{{ week }}-{{ loop.index }}')">Stop</button>
+            <button class="btn btn-start" onclick="startTimer('{{ week }}-{{ loop.index }}')">Start</button>
+            <button class="btn btn-pause" onclick="pauseTimer('{{ week }}-{{ loop.index }}')">Pause / Resume</button>
+            <button class="btn btn-stop" onclick="stopTimer('{{ week }}-{{ loop.index }}')">Stop</button>
 
-          <form action="{{ url_for('submit_time') }}" method="POST" style="display:none;" id="form-{{ week }}-{{ loop.index }}">
-            <input type="hidden" name="week" value="{{ week }}">
-            <input type="hidden" name="topic" value="{{ q['topic'] }}">
-            <input type="hidden" name="question" value="{{ q['title'] }}">
-            <input type="hidden" name="difficulty" value="{{ q['difficulty'] }}">
-            <input type="hidden" name="expected_time" value="{{ q['expected_time_min'] }}">
-            <input type="hidden" name="actual_time" id="actual-{{ week }}-{{ loop.index }}">
-            <button type="submit" class="btn btn-submit">Submit</button>
-          </form>
-        </div>
-      {% endfor %}
-    </div>
-  {% endfor %}
+            <form action="{{ url_for('submit_time') }}" method="POST" style="display:none;" id="form-{{ week }}-{{ loop.index }}">
+              <input type="hidden" name="week" value="{{ week }}">
+              <input type="hidden" name="topic" value="{{ q['topic'] }}">
+              <input type="hidden" name="question" value="{{ q['title'] }}">
+              <input type="hidden" name="difficulty" value="{{ q['difficulty'] }}">
+              <input type="hidden" name="expected_time" value="{{ q['expected_time_min'] }}">
+              <input type="hidden" name="actual_time" id="actual-{{ week }}-{{ loop.index }}">
+              <button type="submit" class="btn btn-submit">Submit</button>
+            </form>
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="text-center mt-4">No roadmap generated yet. Please select the number of weeks, hours per week, and topics, then click "Generate Roadmap".</p>
+  {% endif %}
 </div>
 
 <script>
