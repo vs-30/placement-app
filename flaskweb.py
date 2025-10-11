@@ -446,29 +446,32 @@ def update_self_confidence():
             p for p in all_problems if infer_topic(p.get("title", "")) == topic
         ]
         total_topic = len(topic_problems)
-        solved_in_time = 0
-        not_in_time = []
+        solved_count = 0
+        late_questions = []
 
         for prob in topic_problems:
             title = prob["title"]
             expected = DIFFICULTY_TIME.get(prob.get("difficulty", "medium").lower(), 20)
             actual = completed.get(title)
-            if actual:
-                if actual <= expected:
-                    solved_in_time += 1
-                else:
-                    not_in_time.append({
+
+            if actual is not None:
+                solved_count += 1  # count all completed questions
+                if actual > expected:
+                    late_questions.append({
                         "title": title,
-                        "time": actual
+                        "time": actual,
+                        "expected_time": expected
                     })
+
 
         return jsonify({
             "status": "ok",
             "topic": topic,
-            "solved_in_time": solved_in_time,
-            "total": total_topic,
-            "not_in_time": not_in_time
+            "solved_count": solved_count,
+            "total": len(topic_problems),
+            "late_questions": late_questions
         })
+
 
     except Exception as e:
         print("Error in update_self_confidence:", e)

@@ -19,13 +19,15 @@
     </div>
     <div class="mb-3">
       <label>Topics:</label><br>
-      {% for topic in topics_list %}
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" name="topics" value="{{ topic }}"
-                 {% if topic in selected_topics %}checked{% endif %}>
-          <label class="form-check-label">{{ topic }}</label>
-        </div>
-      {% endfor %}
+      <div class="d-flex flex-wrap">
+        {% for topic in topics_list %}
+          <div class="topic-card m-2 p-2 text-center {% if topic in selected_topics %}selected{% endif %}" 
+               onclick="toggleTopic(this)">
+            {{ topic }}
+            <input type="checkbox" name="topics" value="{{ topic }}" class="d-none" {% if topic in selected_topics %}checked{% endif %}>
+          </div>
+        {% endfor %}
+      </div>
     </div>
     <button type="submit" class="btn btn-primary">Generate Roadmap</button>
   </form>
@@ -73,6 +75,22 @@
 </div>
 
 <style>
+/* Flashcard style for topics */
+.topic-card { 
+  border: 1px solid #ccc; 
+  border-radius: 12px; 
+  padding: 10px 20px; 
+  cursor: pointer; 
+  user-select: none;
+  background: #fefefe;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  transition: all 0.2s ease;
+}
+.topic-card.selected {
+  background: #5a3eeb;
+  color: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
 .week-card { background: #fefefe; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 .week-header { color: #5a3eeb; font-weight: bold; }
 .timer { font-weight: 600; font-size: 16px; }
@@ -86,6 +104,13 @@
 
 <script>
 let timers = {};
+
+// Toggle topic selection on click
+function toggleTopic(card) {
+  const checkbox = card.querySelector("input[type='checkbox']");
+  checkbox.checked = !checkbox.checked;
+  card.classList.toggle("selected");
+}
 
 // =============== TIMER LOGIC ===============
 function startTimer(id) {
@@ -140,7 +165,6 @@ function submitTime(id, questionTitle, topic, expectedTime) {
         btn.classList.add("btn-success");
         btn.classList.remove("btn-outline-secondary");
       }
-      // stop timer display
       if(timers[id].interval) clearInterval(timers[id].interval);
       timers[id].running = false;
     } else {

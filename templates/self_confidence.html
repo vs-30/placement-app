@@ -7,10 +7,14 @@
     <div class="card mb-4 topic-card p-3">
       <div class="d-flex justify-content-between align-items-center">
         <h4 class="topic-header">{{ topic }}</h4>
-        <span class="badge bg-primary">{{ questions|selectattr("status","equalto","Completed On Time")|list|length }}/{{ questions|length }} Completed</span>
+        <span class="badge bg-primary">
+          {{ questions|selectattr("status","in",["Completed On Time","Exceeded Expected Time"])|list|length }}/{{ questions|length }} Completed
+        </span>
       </div>
+
+      <!-- Button to toggle incomplete/late questions -->
       <button class="btn btn-sm btn-outline-secondary mt-2 mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="false">
-        View Incomplete Questions
+        View Incomplete / Late Questions
       </button>
       <div class="collapse" id="collapse-{{ loop.index }}">
         {% for q in questions %}
@@ -24,8 +28,10 @@
                   <span style="color:red;">{{ q.status }}</span>
                 {% endif %}
               </p>
-              <p><strong>Expected Time:</strong> {{ q.expected_time }} min | 
-                 <strong>Actual Time:</strong> {{ q.actual_time if q.actual_time else 'Not Attempted' }}</p>
+              <p>
+                <strong>Expected Time:</strong> {{ q.expected_time }} min | 
+                <strong>Actual Time:</strong> {{ q.actual_time if q.actual_time else 'Not Attempted' }}
+              </p>
               {% if q.link %}
                 <a href="{{ q.link }}" target="_blank" class="btn btn-info btn-sm">View Question</a>
               {% endif %}
