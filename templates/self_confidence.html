@@ -1,5 +1,38 @@
 {% extends "layout.html" %}
 {% block content %}
-<h1>Self Confidence tester Page</h1>
-<p>Your coding roadmap will appear here.</p>
+<div class="container mt-5">
+  <h2 class="text-center mb-4">💪 Your Self-Confidence Report</h2>
+
+  {% for week, questions in performance.items() %}
+    <div class="card mb-4 week-card p-3">
+      <h4 class="week-header">Week {{ week }}</h4>
+      <hr>
+      {% for q in questions %}
+        <div class="question-item mb-3">
+          <h5>{{ q.title }}</h5>
+          <p><strong>Topic:</strong> {{ q.topic }} | <strong>Difficulty:</strong> {{ q.difficulty }}</p>
+          <p><strong>Expected Time:</strong> {{ q.expected_time }} min | <strong>Actual Time:</strong> {{ q.actual_time if q.actual_time else 'Not Attempted' }}</p>
+          <p><strong>Status:</strong> 
+            {% if q.status == "Completed On Time" %}
+              <span style="color:green;">{{ q.status }}</span>
+            {% elif q.status == "Exceeded Expected Time" %}
+              <span style="color:orange;">{{ q.status }}</span>
+            {% else %}
+              <span style="color:red;">{{ q.status }}</span>
+            {% endif %}
+          </p>
+          <a href="{{ q.link }}" target="_blank" class="btn btn-info">View Question</a>
+        </div>
+        <hr>
+      {% endfor %}
+    </div>
+  {% endfor %}
+</div>
+
+<style>
+.week-card { background: #fefefe; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.week-header { color: #5a3eeb; font-weight: bold; }
+.question-item { padding: 10px; }
+.btn-info { background: #00bcd4; color: white; }
+</style>
 {% endblock %}

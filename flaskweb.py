@@ -516,31 +516,9 @@ def save_results():
     )
     return jsonify({"status": "success"})
 
-@app.route("/roadmap")
-def roadmap():
-    """
-    Render the roadmap creation page.
-    User selects number of weeks, hours per week, and topics.
-    """
-    return render_template(
-        "roadmap.html",
-        show_sidebar=True,
-        companies_list=TARGET_COMPANIES,  # optional sidebar
-        topics_list=TOPICS_LIST,
-        roadmap=None  # initially no roadmap generated
-    )
-
-
+from flask import session, flash, redirect, url_for, request, render_template
 from random import shuffle
-
-# Map difficulty to expected minutes per question
-DIFFICULTY_TIME = {
-    "easy": 15,
-    "medium": 25,
-    "hard": 40
-}
-
-from random import shuffle
+import logging
 
 # Difficulty to expected minutes mapping
 DIFFICULTY_TIME = {
@@ -549,8 +527,44 @@ DIFFICULTY_TIME = {
     "hard": 40
 }
 
+@app.route("/roadmap")
+def roadmap():
+    """
+    Render the roadmap page.
+    Pre-fill user selections if available.
+    """
+    user_email = session.get("email")
+    selected_topics = []
+    weeks = None
+    hours_per_week = None
+
+    # Fetch saved selections for this user
+    if user_email:
+        user_data = users.find_one({"email": user_email})
+        if user_data and "roadmap_settings" in user_data:
+            settings = user_data["roadmap_settings"]
+            weeks = settings.get("weeks")
+            hours_per_week = settings.get("hours_per_week")
+            selected_topics = settings.get("topics", [])
+
+    return render_template(
+        "roadmap.html",
+        show_sidebar=True,
+        companies_list=TARGET_COMPANIES,  # optional
+        topics_list=TOPICS_LIST,
+        roadmap=None,  # initially no roadmap generated
+        selected_topics=selected_topics,
+        weeks=weeks,
+        hours_per_week=hours_per_week
+    )
+
+
 @app.route("/generate_roadmap", methods=["POST"])
 def generate_roadmap():
+    """
+    Generate roadmap based on user input.
+    Persist the selections in DB per user email.
+    """
     try:
         weeks = int(request.form.get("weeks", 0))
         hours_per_week = int(request.form.get("hours_per_week", 0))
@@ -559,6 +573,19 @@ def generate_roadmap():
         if weeks <= 0 or hours_per_week <= 0:
             flash("Please fill all fields correctly.", "danger")
             return redirect(url_for("roadmap"))
+
+        # Persist selections for the user
+        user_email = session.get("email")
+        if user_email:
+            users.update_one(
+                {"email": user_email},
+                {"$set": {"roadmap_settings": {
+                    "weeks": weeks,
+                    "hours_per_week": hours_per_week,
+                    "topics": selected_topics
+                }}},
+                upsert=True
+            )
 
         # Fetch all problems
         all_problems = list(problems.find({"title": {"$ne": ""}}))
@@ -576,17 +603,16 @@ def generate_roadmap():
         shuffle(all_problems)
         minutes_per_week = hours_per_week * 60
 
-        # Fetch user's completed questions if needed
-        user_email = session.get("email")
+        # Fetch user's completed questions
         completed = {}
         if user_email:
             user = users.find_one({"email": user_email})
             if user and "completed_questions" in user:
                 completed = user["completed_questions"]
 
+        # Generate roadmap
         roadmap = {}
         problem_index = 0
-
         for week_num in range(1, weeks + 1):
             week_tasks = []
             used_minutes = 0
@@ -618,14 +644,15 @@ def generate_roadmap():
             companies_list=TARGET_COMPANIES,
             topics_list=TOPICS_LIST,
             roadmap=roadmap,
-            selected_topics=selected_topics
+            selected_topics=selected_topics,
+            weeks=weeks,
+            hours_per_week=hours_per_week
         )
 
     except Exception as e:
         logging.error(f"Error generating roadmap: {e}")
         flash("Something went wrong while generating the roadmap.", "danger")
         return redirect(url_for("roadmap"))
-
 
 @app.route("/toggle_completed", methods=["POST"])
 def toggle_completed():
@@ -663,7 +690,68 @@ def toggle_completed():
 
 @app.route("/self_confidence")
 def self_confidence():
-    return render_template("self_confidence.html", show_sidebar=True)
+    """
+    Display user's self-confidence/performance summary.
+    Shows completed questions, time taken vs expected, etc.
+    """
+    user_email = session.get("email")
+    if not user_email:
+        flash("Please log in to see your self-confidence report.", "warning")
+        return redirect(url_for("login"))
+
+    user_data = users.find_one({"email": user_email})
+    if not user_data:
+        flash("No user data found.", "warning")
+        return redirect(url_for("dashboard"))
+
+    completed = user_data.get("completed_questions", {})  # { "question_title": seconds_taken }
+    roadmap_settings = user_data.get("roadmap_settings", {})
+    weeks = roadmap_settings.get("weeks", 0)
+
+    # Fetch all problems
+    all_problems = list(problems.find({"title": {"$ne": ""}}))
+
+    # Build per-week performance
+    performance = {}
+    for week_num in range(1, weeks + 1):
+        performance[week_num] = []
+
+    # Map difficulty to expected time
+    for prob in all_problems:
+        title = prob.get("title")
+        difficulty = prob.get("difficulty", "medium").lower()
+        expected_time = DIFFICULTY_TIME.get(difficulty, 20)
+        topic = infer_topic(title)
+        actual_time = completed.get(title)
+
+        # Decide status
+        if actual_time is None:
+            status = "Not Attempted"
+        elif actual_time <= expected_time:
+            status = "Completed On Time"
+        else:
+            status = "Exceeded Expected Time"
+
+        # Optionally, assign to week (simple round-robin or use roadmap week)
+        week_num = 1
+        if "roadmap_assignments" in user_data and title in user_data["roadmap_assignments"]:
+            week_num = user_data["roadmap_assignments"][title]
+        performance.setdefault(week_num, []).append({
+            "title": title,
+            "topic": topic,
+            "difficulty": difficulty,
+            "expected_time": expected_time,
+            "actual_time": actual_time,
+            "status": status,
+            "link": prob.get("link", "#")
+        })
+
+    return render_template(
+        "self_confidence.html",
+        show_sidebar=True,
+        performance=performance
+    )
+
 
 @app.route("/company_specific")
 def company_specific():
