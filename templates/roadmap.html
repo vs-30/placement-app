@@ -3,53 +3,57 @@
 <div class="container mt-5">
   <h2 class="text-center mb-4">📅 Your Personalized Roadmap</h2>
 
-  <!-- Flashcard for Roadmap Form -->
-  <div class="card p-4 mb-5 roadmap-form-card">
-    <h4 class="mb-3">Set Your Preferences</h4>
-    <form action="{{ url_for('generate_roadmap') }}" method="POST">
-      <div class="row mb-3">
-        <div class="col">
-          <label for="weeks">Number of Weeks:</label>
-          <input type="number" name="weeks" id="weeks" class="form-control" min="1" required
-                 value="{{ request.form.get('weeks', '') }}">
-        </div>
-        <div class="col">
-          <label for="hours_per_week">Hours per Week:</label>
-          <input type="number" name="hours_per_week" id="hours_per_week" class="form-control" min="1" required
-                 value="{{ request.form.get('hours_per_week', '') }}">
-        </div>
+  <!-- Roadmap Form -->
+  <form action="{{ url_for('generate_roadmap') }}" method="POST" class="mb-5">
+    <div class="row mb-3">
+      <div class="col">
+        <label for="weeks">Number of Weeks:</label>
+        <input type="number" name="weeks" id="weeks" class="form-control" min="1" required
+               value="{{ weeks or '' }}">
       </div>
-      <div class="mb-3">
-        <label>Topics:</label><br>
-        {% for topic in topics_list %}
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="checkbox" name="topics" value="{{ topic }}"
-                   {% if topic in selected_topics %}checked{% endif %}>
-            <label class="form-check-label">{{ topic }}</label>
-          </div>
-        {% endfor %}
+      <div class="col">
+        <label for="hours_per_week">Hours per Week:</label>
+        <input type="number" name="hours_per_week" id="hours_per_week" class="form-control" min="1" required
+               value="{{ hours_per_week or '' }}">
       </div>
-      <button type="submit" class="btn btn-primary">Generate Roadmap</button>
-    </form>
-  </div>
+    </div>
+    <div class="mb-3">
+      <label>Topics:</label><br>
+      {% for topic in topics_list %}
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" name="topics" value="{{ topic }}"
+                 {% if topic in selected_topics %}checked{% endif %}>
+          <label class="form-check-label">{{ topic }}</label>
+        </div>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn btn-primary">Generate Roadmap</button>
+  </form>
 
   {% if roadmap %}
     {% for week, questions in roadmap.items() %}
-      <!-- Flashcard for each Week -->
-      <div class="card p-3 mb-4 week-card">
+      <div class="card mb-4 week-card p-3">
         <h4 class="week-header">Week {{ week }}</h4>
         <hr>
         {% for q in questions %}
           <div class="question-item mb-3">
-            <h5>{{ q['title'] }}</h5>
-            <p>
-              <strong>Topic:</strong> {{ q['topic'] }} |
-              <strong>Difficulty:</strong> {{ q['difficulty'] }} |
-              <strong>Expected Time:</strong> {{ q['expected_time_min'] }} min
-            </p>
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h5>{{ q['title'] }}</h5>
+                <p>
+                  <strong>Topic:</strong> {{ q['topic'] }} |
+                  <strong>Difficulty:</strong> {{ q['difficulty'] }} |
+                  <strong>Expected Time:</strong> {{ q['expected_time_min'] }} min
+                </p>
+              </div>
+              <button 
+                class="btn btn-sm complete-btn {% if q['completed'] %}btn-success{% else %}btn-outline-secondary{% endif %}" 
+                data-title="{{ q['title'] }}">
+                {% if q['completed'] %}✅ Completed{% else %}Mark Complete{% endif %}
+              </button>
+            </div>
 
             <div class="timer mb-2" id="timer-{{ week }}-{{ loop.index }}">00:00</div>
-
             <button class="btn btn-start" onclick="startTimer('{{ week }}-{{ loop.index }}')">Start</button>
             <button class="btn btn-pause" onclick="pauseTimer('{{ week }}-{{ loop.index }}')">Pause / Resume</button>
             <button class="btn btn-stop" onclick="stopTimer('{{ week }}-{{ loop.index }}')">Stop</button>
@@ -79,15 +83,9 @@
 </div>
 
 <style>
-/* Form Flashcard */
-.roadmap-form-card { background: #fefefe; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-
-/* Week Flashcard */
 .week-card { background: #fefefe; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 .week-header { color: #5a3eeb; font-weight: bold; }
-
-/* Question card elements */
-.timer { font-weight: 600; font-size: 16px; margin-bottom: 5px; }
+.timer { font-weight: 600; font-size: 16px; }
 .btn { margin-right: 5px; margin-top: 5px; }
 .btn-start { background: #4CAF50; color: white; }
 .btn-pause { background: #ff9800; color: white; }
@@ -99,6 +97,7 @@
 <script>
 let timers = {};
 
+// =============== TIMER LOGIC ===============
 function startTimer(id) {
   if (!timers[id]) {
     timers[id] = {seconds: 0, running: false, interval: null};
@@ -135,5 +134,41 @@ function formatTime(seconds) {
   let s = seconds % 60;
   return String(m).padStart(2, '0') + ":" + String(s).padStart(2, '0');
 }
+
+// =============== REAL-TIME UPDATE LOGIC ===============
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll(".complete-btn").forEach(btn => {
+    btn.addEventListener("click", async function () {
+      const title = this.dataset.title;
+      this.disabled = true;
+
+      const response = await fetch("/toggle_completed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title })
+      });
+
+      const data = await response.json();
+      if (data.status === "success") {
+        if (data.completed) {
+          this.innerHTML = "✅ Completed";
+          this.classList.add("btn-success");
+          this.classList.remove("btn-outline-secondary");
+        } else {
+          this.innerHTML = "Mark Complete";
+          this.classList.remove("btn-success");
+          this.classList.add("btn-outline-secondary");
+        }
+
+        // Notify self_confidence.html to refresh
+        localStorage.setItem("update_self_confidence", Date.now());
+        this.disabled = false;
+      } else {
+        alert("Error updating status: " + data.message);
+        this.disabled = false;
+      }
+    });
+  });
+});
 </script>
 {% endblock %}

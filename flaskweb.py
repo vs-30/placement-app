@@ -389,6 +389,71 @@ def register():
         return redirect(url_for("login"))
     return render_template("register.html", form=form)
 
+@app.route("/update_self_confidence", methods=["POST"])
+def update_self_confidence():
+    """
+    Called via AJAX when user clicks Submit on a question timer.
+    Updates that question's completion info in MongoDB
+    and recalculates self-confidence stats per topic.
+    """
+    try:
+        data = request.get_json()
+        user_email = session.get("email")
+        if not user_email:
+            return jsonify({"error": "User not logged in"}), 401
+
+        question_title = data.get("question")
+        topic = data.get("topic")
+        difficulty = data.get("difficulty")
+        expected_time = int(data.get("expected_time"))
+        actual_time = int(data.get("actual_time"))
+
+        # 1️⃣ Save completion info for that single question
+        users.update_one(
+            {"email": user_email},
+            {"$set": {f"completed_questions.{question_title}": actual_time}},
+            upsert=True
+        )
+
+        # 2️⃣ Fetch all user's completed questions
+        user_data = users.find_one({"email": user_email})
+        completed = user_data.get("completed_questions", {})
+
+        # 3️⃣ Calculate topic stats
+        all_problems = list(problems.find({"title": {"$ne": ""}}))
+        topic_problems = [
+            p for p in all_problems if infer_topic(p.get("title", "")) == topic
+        ]
+        total_topic = len(topic_problems)
+        solved_in_time = 0
+        not_in_time = []
+
+        for prob in topic_problems:
+            title = prob["title"]
+            expected = DIFFICULTY_TIME.get(prob.get("difficulty", "medium").lower(), 20)
+            actual = completed.get(title)
+            if actual:
+                if actual <= expected:
+                    solved_in_time += 1
+                else:
+                    not_in_time.append({
+                        "title": title,
+                        "time": actual
+                    })
+
+        return jsonify({
+            "status": "ok",
+            "topic": topic,
+            "solved_in_time": solved_in_time,
+            "total": total_topic,
+            "not_in_time": not_in_time
+        })
+
+    except Exception as e:
+        print("Error in update_self_confidence:", e)
+        return jsonify({"error": "Server error"}), 500
+
+
 @app.route("/quiz/company", methods=["GET", "POST"])
 def company_quiz():
     if request.method == "POST":
@@ -691,8 +756,7 @@ def toggle_completed():
 @app.route("/self_confidence")
 def self_confidence():
     """
-    Display user's self-confidence/performance summary.
-    Shows completed questions, time taken vs expected, etc.
+    Display user's self-confidence/performance summary grouped by topic.
     """
     user_email = session.get("email")
     if not user_email:
@@ -705,18 +769,12 @@ def self_confidence():
         return redirect(url_for("dashboard"))
 
     completed = user_data.get("completed_questions", {})  # { "question_title": seconds_taken }
-    roadmap_settings = user_data.get("roadmap_settings", {})
-    weeks = roadmap_settings.get("weeks", 0)
 
     # Fetch all problems
     all_problems = list(problems.find({"title": {"$ne": ""}}))
 
-    # Build per-week performance
-    performance = {}
-    for week_num in range(1, weeks + 1):
-        performance[week_num] = []
-
-    # Map difficulty to expected time
+    # Map difficulty to expected time and build topic-wise dict
+    performance_by_topic = {}
     for prob in all_problems:
         title = prob.get("title")
         difficulty = prob.get("difficulty", "medium").lower()
@@ -732,26 +790,24 @@ def self_confidence():
         else:
             status = "Exceeded Expected Time"
 
-        # Optionally, assign to week (simple round-robin or use roadmap week)
-        week_num = 1
-        if "roadmap_assignments" in user_data and title in user_data["roadmap_assignments"]:
-            week_num = user_data["roadmap_assignments"][title]
-        performance.setdefault(week_num, []).append({
+        entry = {
             "title": title,
-            "topic": topic,
             "difficulty": difficulty,
             "expected_time": expected_time,
             "actual_time": actual_time,
             "status": status,
             "link": prob.get("link", "#")
-        })
+        }
+
+        if topic not in performance_by_topic:
+            performance_by_topic[topic] = []
+        performance_by_topic[topic].append(entry)
 
     return render_template(
         "self_confidence.html",
         show_sidebar=True,
-        performance=performance
+        performance_by_topic=performance_by_topic
     )
-
 
 @app.route("/company_specific")
 def company_specific():
