@@ -639,20 +639,25 @@ def roadmap():
                 all_problems = [p for p in all_problems if infer_topic(p.get("title", "")) in selected_topics]
 
             if all_problems:
-                shuffle(all_problems)
                 minutes_per_week = hours_per_week * 60
-
-                # Fetch user's completed questions
                 completed = user_data.get("completed_questions", {})
 
-                # Generate roadmap
+                # Separate completed and uncompleted problems
+                completed_problems = [p for p in all_problems if p.get("title") in completed]
+                uncompleted_problems = [p for p in all_problems if p.get("title") not in completed]
+                shuffle(uncompleted_problems)
+
                 roadmap_data = {}
-                problem_index = 0
+                index_completed = 0
+                index_uncompleted = 0
+
                 for week_num in range(1, weeks + 1):
                     week_tasks = []
                     used_minutes = 0
-                    while used_minutes < minutes_per_week and problem_index < len(all_problems):
-                        prob = all_problems[problem_index]
+
+                    # Add completed problems first
+                    while index_completed < len(completed_problems):
+                        prob = completed_problems[index_completed]
                         difficulty = prob.get("difficulty", "medium").lower()
                         expected_time = DIFFICULTY_TIME.get(difficulty, 20)
                         topic = infer_topic(prob.get("title", ""))
@@ -664,12 +669,34 @@ def roadmap():
                                 "difficulty": difficulty,
                                 "expected_time_min": expected_time,
                                 "topic": topic,
-                                "completed": completed.get(prob.get("title", False))
+                                "completed": True
                             })
                             used_minutes += expected_time
-                            problem_index += 1
+                            index_completed += 1
                         else:
                             break
+
+                    # Fill remaining slots with uncompleted problems
+                    while used_minutes < minutes_per_week and index_uncompleted < len(uncompleted_problems):
+                        prob = uncompleted_problems[index_uncompleted]
+                        difficulty = prob.get("difficulty", "medium").lower()
+                        expected_time = DIFFICULTY_TIME.get(difficulty, 20)
+                        topic = infer_topic(prob.get("title", ""))
+
+                        if used_minutes + expected_time <= minutes_per_week:
+                            week_tasks.append({
+                                "title": prob.get("title", "Unknown"),
+                                "link": prob.get("link", "#"),
+                                "difficulty": difficulty,
+                                "expected_time_min": expected_time,
+                                "topic": topic,
+                                "completed": False
+                            })
+                            used_minutes += expected_time
+                            index_uncompleted += 1
+                        else:
+                            break
+
                     roadmap_data[week_num] = week_tasks
 
     return render_template(
@@ -699,7 +726,6 @@ def generate_roadmap():
             flash("Please fill all fields correctly.", "danger")
             return redirect(url_for("roadmap"))
 
-        # Persist selections for the user
         user_email = session.get("email")
         if user_email:
             users.update_one(
@@ -712,37 +738,37 @@ def generate_roadmap():
                 upsert=True
             )
 
-        # Fetch all problems
         all_problems = list(problems.find({"title": {"$ne": ""}}))
-
-        # Filter by selected topics
         if selected_topics:
-            all_problems = [
-                p for p in all_problems if infer_topic(p.get("title", "")) in selected_topics
-            ]
+            all_problems = [p for p in all_problems if infer_topic(p.get("title", "")) in selected_topics]
 
         if not all_problems:
             flash("No problems found for selected topics.", "warning")
             return redirect(url_for("roadmap"))
 
-        shuffle(all_problems)
         minutes_per_week = hours_per_week * 60
-
-        # Fetch user's completed questions
         completed = {}
         if user_email:
             user = users.find_one({"email": user_email})
             if user and "completed_questions" in user:
                 completed = user["completed_questions"]
 
-        # Generate roadmap
+        # Separate completed and uncompleted problems
+        completed_problems = [p for p in all_problems if p.get("title") in completed]
+        uncompleted_problems = [p for p in all_problems if p.get("title") not in completed]
+        shuffle(uncompleted_problems)
+
         roadmap = {}
-        problem_index = 0
+        index_completed = 0
+        index_uncompleted = 0
+
         for week_num in range(1, weeks + 1):
             week_tasks = []
             used_minutes = 0
-            while used_minutes < minutes_per_week and problem_index < len(all_problems):
-                prob = all_problems[problem_index]
+
+            # Add completed problems first
+            while index_completed < len(completed_problems):
+                prob = completed_problems[index_completed]
                 difficulty = prob.get("difficulty", "medium").lower()
                 expected_time = DIFFICULTY_TIME.get(difficulty, 20)
                 topic = infer_topic(prob.get("title", ""))
@@ -754,10 +780,31 @@ def generate_roadmap():
                         "difficulty": difficulty,
                         "expected_time_min": expected_time,
                         "topic": topic,
-                        "completed": completed.get(prob.get("title", ""), False)
+                        "completed": True
                     })
                     used_minutes += expected_time
-                    problem_index += 1
+                    index_completed += 1
+                else:
+                    break
+
+            # Fill remaining slots with uncompleted problems
+            while used_minutes < minutes_per_week and index_uncompleted < len(uncompleted_problems):
+                prob = uncompleted_problems[index_uncompleted]
+                difficulty = prob.get("difficulty", "medium").lower()
+                expected_time = DIFFICULTY_TIME.get(difficulty, 20)
+                topic = infer_topic(prob.get("title", ""))
+
+                if used_minutes + expected_time <= minutes_per_week:
+                    week_tasks.append({
+                        "title": prob.get("title", "Unknown"),
+                        "link": prob.get("link", "#"),
+                        "difficulty": difficulty,
+                        "expected_time_min": expected_time,
+                        "topic": topic,
+                        "completed": False
+                    })
+                    used_minutes += expected_time
+                    index_uncompleted += 1
                 else:
                     break
 
@@ -778,6 +825,7 @@ def generate_roadmap():
         logging.error(f"Error generating roadmap: {e}")
         flash("Something went wrong while generating the roadmap.", "danger")
         return redirect(url_for("roadmap"))
+
 
 @app.route("/toggle_completed", methods=["POST"])
 def toggle_completed():
