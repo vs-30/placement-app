@@ -353,6 +353,27 @@ def ingest_companies_dynamic():
 def about():
     return render_template("about.html", show_sidebar=False)
 
+@app.route("/submit_time_ajax", methods=["POST"])
+def submit_time_ajax():
+    data = request.get_json()
+    user_email = session.get("email")
+    if not user_email:
+        return jsonify({"status": "error", "message": "User not logged in"}), 401
+
+    question = data.get("question")
+    topic = data.get("topic")
+    actual_time = int(data.get("actual_time", 0))
+    expected_time = int(data.get("expected_time", 0))
+
+    # Save completed question
+    users.update_one(
+        {"email": user_email},
+        {"$set": {f"completed_questions.{question}": actual_time}},
+        upsert=True
+    )
+
+    return jsonify({"status": "success"})
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     form = LoginForm()

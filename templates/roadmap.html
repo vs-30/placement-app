@@ -56,20 +56,10 @@
             <div class="timer mb-2" id="timer-{{ week }}-{{ loop.index }}">00:00</div>
             <button class="btn btn-start" onclick="startTimer('{{ week }}-{{ loop.index }}')">Start</button>
             <button class="btn btn-pause" onclick="pauseTimer('{{ week }}-{{ loop.index }}')">Pause / Resume</button>
-            <button class="btn btn-stop" onclick="stopTimer('{{ week }}-{{ loop.index }}')">Stop</button>
+            <button class="btn btn-stop" onclick="submitTime('{{ week }}-{{ loop.index }}', '{{ q['title'] }}', '{{ q['topic'] }}', '{{ q['expected_time_min'] }}')">Stop</button>
             {% if q['link'] %}
               <a href="{{ q['link'] }}" target="_blank" class="btn btn-info">View</a>
             {% endif %}
-
-            <form action="{{ url_for('submit_time') }}" method="POST" style="display:none;" id="form-{{ week }}-{{ loop.index }}">
-              <input type="hidden" name="week" value="{{ week }}">
-              <input type="hidden" name="topic" value="{{ q['topic'] }}">
-              <input type="hidden" name="question" value="{{ q['title'] }}">
-              <input type="hidden" name="difficulty" value="{{ q['difficulty'] }}">
-              <input type="hidden" name="expected_time" value="{{ q['expected_time_min'] }}">
-              <input type="hidden" name="actual_time" id="actual-{{ week }}-{{ loop.index }}">
-              <button type="submit" class="btn btn-submit mt-2">Submit</button>
-            </form>
           </div>
           <hr>
         {% endfor %}
@@ -120,22 +110,46 @@ function pauseTimer(id) {
   }
 }
 
-function stopTimer(id) {
-  if (timers[id]) {
-    clearInterval(timers[id].interval);
-    timers[id].running = false;
-    document.getElementById("actual-" + id).value = timers[id].seconds;
-    document.getElementById("form-" + id).style.display = "block";
-  }
-}
-
 function formatTime(seconds) {
   let m = Math.floor(seconds / 60);
   let s = seconds % 60;
   return String(m).padStart(2, '0') + ":" + String(s).padStart(2, '0');
 }
 
-// =============== REAL-TIME UPDATE LOGIC ===============
+// =============== ASYNC SUBMIT FUNCTION ===============
+function submitTime(id, questionTitle, topic, expectedTime) {
+  if(!timers[id]) timers[id] = {seconds:0};
+  const actualTime = timers[id].seconds;
+
+  fetch("/submit_time_ajax", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question: questionTitle,
+      topic: topic,
+      actual_time: actualTime,
+      expected_time: expectedTime
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if(data.status === "success"){
+      const btn = document.querySelector(`.complete-btn[data-title='${questionTitle}']`);
+      if(btn){
+        btn.innerHTML = "✅ Completed";
+        btn.classList.add("btn-success");
+        btn.classList.remove("btn-outline-secondary");
+      }
+      // stop timer display
+      if(timers[id].interval) clearInterval(timers[id].interval);
+      timers[id].running = false;
+    } else {
+      alert("Error saving time");
+    }
+  });
+}
+
+// =============== REAL-TIME TOGGLE COMPLETED ===============
 document.addEventListener("DOMContentLoaded", function () {
   document.querySelectorAll(".complete-btn").forEach(btn => {
     btn.addEventListener("click", async function () {
@@ -160,7 +174,6 @@ document.addEventListener("DOMContentLoaded", function () {
           this.classList.add("btn-outline-secondary");
         }
 
-        // Notify self_confidence.html to refresh
         localStorage.setItem("update_self_confidence", Date.now());
         this.disabled = false;
       } else {
