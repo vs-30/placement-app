@@ -103,36 +103,31 @@
 </style>
 
 <script>
-let timers = {};
+let timers = {}; // will store startTime and pausedSeconds for each question
 
-// Toggle topic selection on click
-function toggleTopic(card) {
-  const checkbox = card.querySelector("input[type='checkbox']");
-  checkbox.checked = !checkbox.checked;
-  card.classList.toggle("selected");
-}
-
-// =============== TIMER LOGIC ===============
 function startTimer(id) {
   if (!timers[id]) {
-    timers[id] = {seconds: 0, running: false, interval: null};
-  }
-  if (!timers[id].running) {
+    timers[id] = { startTime: Date.now(), pausedSeconds: 0, running: true };
+  } else if (!timers[id].running) {
+    // Resume from pause
+    timers[id].startTime = Date.now() - timers[id].pausedSeconds * 1000;
     timers[id].running = true;
-    timers[id].interval = setInterval(() => {
-      timers[id].seconds++;
-      document.getElementById("timer-" + id).innerText = formatTime(timers[id].seconds);
-    }, 1000);
   }
+  updateTimer(id);
 }
 
 function pauseTimer(id) {
   if (timers[id] && timers[id].running) {
-    clearInterval(timers[id].interval);
+    timers[id].pausedSeconds = Math.floor((Date.now() - timers[id].startTime) / 1000);
     timers[id].running = false;
-  } else if (timers[id] && !timers[id].running) {
-    startTimer(id);
   }
+}
+
+function updateTimer(id) {
+  if (!timers[id] || !timers[id].running) return;
+  const elapsedSeconds = Math.floor((Date.now() - timers[id].startTime) / 1000);
+  document.getElementById("timer-" + id).innerText = formatTime(elapsedSeconds);
+  requestAnimationFrame(() => updateTimer(id)); // smooth and accurate
 }
 
 function formatTime(seconds) {
@@ -143,8 +138,13 @@ function formatTime(seconds) {
 
 // =============== ASYNC SUBMIT FUNCTION ===============
 function submitTime(id, questionTitle, topic, expectedTime) {
-  if(!timers[id]) timers[id] = {seconds:0};
-  const actualTime = timers[id].seconds;
+  let actualTime = 0;
+  if (timers[id]) {
+    actualTime = timers[id].running
+      ? Math.floor((Date.now() - timers[id].startTime) / 1000)
+      : timers[id].pausedSeconds;
+    timers[id].running = false; // stop timer
+  }
 
   fetch("/submit_time_ajax", {
     method: "POST",
@@ -165,13 +165,12 @@ function submitTime(id, questionTitle, topic, expectedTime) {
         btn.classList.add("btn-success");
         btn.classList.remove("btn-outline-secondary");
       }
-      if(timers[id].interval) clearInterval(timers[id].interval);
-      timers[id].running = false;
     } else {
       alert("Error saving time");
     }
   });
 }
+
 
 // =============== REAL-TIME TOGGLE COMPLETED ===============
 document.addEventListener("DOMContentLoaded", function () {
