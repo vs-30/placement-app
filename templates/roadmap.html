@@ -52,7 +52,7 @@
     </div>
     <ul class="list-group list-group-flush">
       {% for task in tasks %}
-      <li class="list-group-item d-flex justify-content-between align-items-center">
+      <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap">
         <div>
           <strong>{{ task["title"] }}</strong>
           <br>
@@ -60,16 +60,23 @@
           <br>
           <small class="text-info">Allocated Time: {{ task["expected_time_min"] }} min</small>
         </div>
-        <div>
+        <div class="text-end">
           {% if task["link"] %}
           <a href="{{ task['link'] }}" target="_blank" class="btn btn-sm btn-outline-primary mb-1">View</a>
           {% endif %}
-          <button class="btn btn-sm btn-outline-success start-timer-btn" 
-                  data-minutes="{{ task['expected_time_min'] }}" 
-                  data-question="{{ task['title'] }}">
-            Start Timer
-          </button>
-          <div class="mt-1 text-danger timer-display" id="timer-{{ loop.index }}"></div>
+          <div class="btn-group mb-1">
+            <button class="btn btn-sm btn-outline-success start-timer-btn"
+                    data-minutes="{{ task['expected_time_min'] }}"
+                    data-question="{{ task['title'] }}"
+                    data-idx="{{ loop.index }}">
+              ▶ Start
+            </button>
+            <button class="btn btn-sm btn-outline-danger stop-timer-btn"
+                    data-idx="{{ loop.index }}">
+              ⏹ Stop
+            </button>
+          </div>
+          <div class="mt-1 text-danger fw-bold timer-display" id="timer-{{ loop.index }}">--:--</div>
         </div>
       </li>
       {% endfor %}
@@ -82,39 +89,46 @@
 <!-- Timer Script -->
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-  const buttons = document.querySelectorAll(".start-timer-btn");
+  const timers = {};
+  const intervals = {};
 
-  buttons.forEach((btn, idx) => {
-    let timerInterval;
-
-    btn.addEventListener("click", function() {
-      clearInterval(timerInterval); // stop any existing timer
-
+  // Start timer
+  document.querySelectorAll(".start-timer-btn").forEach(button => {
+    button.addEventListener("click", function() {
+      const idx = this.dataset.idx;
       const minutes = parseInt(this.dataset.minutes);
-      let secondsLeft = minutes * 60;
-      const display = document.getElementById(`timer-${idx + 1}`);
+      const question = this.dataset.question;
+      const display = document.getElementById(`timer-${idx}`);
 
-      display.textContent = formatTime(secondsLeft);
+      // Clear any previous timer for this question
+      clearInterval(intervals[idx]);
+      timers[idx] = minutes * 60;
 
-      timerInterval = setInterval(() => {
-        secondsLeft--;
-        display.textContent = formatTime(secondsLeft);
+      intervals[idx] = setInterval(() => {
+        const m = Math.floor(timers[idx] / 60);
+        const s = timers[idx] % 60;
+        display.textContent = `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+        timers[idx]--;
 
-        if (secondsLeft <= 0) {
-          clearInterval(timerInterval);
-          alert(`⏰ Time's up for "${this.dataset.question}"!`);
+        if (timers[idx] < 0) {
+          clearInterval(intervals[idx]);
+          display.textContent = "Time’s up!";
+          alert(`⏰ Time’s up for "${question}"!`);
         }
       }, 1000);
     });
   });
 
-  function formatTime(seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  }
+  // Stop timer
+  document.querySelectorAll(".stop-timer-btn").forEach(button => {
+    button.addEventListener("click", function() {
+      const idx = this.dataset.idx;
+      clearInterval(intervals[idx]);
+      const display = document.getElementById(`timer-${idx}`);
+      display.textContent = "--:--";
+    });
+  });
 });
 </script>
 
 {% endblock %}
-
