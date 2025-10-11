@@ -596,14 +596,14 @@ DIFFICULTY_TIME = {
 def roadmap():
     """
     Render the roadmap page.
-    Pre-fill user selections if available.
+    Auto-generate roadmap if user has saved settings.
     """
     user_email = session.get("email")
     selected_topics = []
     weeks = None
     hours_per_week = None
+    roadmap_data = None
 
-    # Fetch saved selections for this user
     if user_email:
         user_data = users.find_one({"email": user_email})
         if user_data and "roadmap_settings" in user_data:
@@ -612,12 +612,51 @@ def roadmap():
             hours_per_week = settings.get("hours_per_week")
             selected_topics = settings.get("topics", [])
 
+            # Fetch all problems
+            all_problems = list(problems.find({"title": {"$ne": ""}}))
+            if selected_topics:
+                all_problems = [p for p in all_problems if infer_topic(p.get("title", "")) in selected_topics]
+
+            if all_problems:
+                shuffle(all_problems)
+                minutes_per_week = hours_per_week * 60
+
+                # Fetch user's completed questions
+                completed = user_data.get("completed_questions", {})
+
+                # Generate roadmap
+                roadmap_data = {}
+                problem_index = 0
+                for week_num in range(1, weeks + 1):
+                    week_tasks = []
+                    used_minutes = 0
+                    while used_minutes < minutes_per_week and problem_index < len(all_problems):
+                        prob = all_problems[problem_index]
+                        difficulty = prob.get("difficulty", "medium").lower()
+                        expected_time = DIFFICULTY_TIME.get(difficulty, 20)
+                        topic = infer_topic(prob.get("title", ""))
+
+                        if used_minutes + expected_time <= minutes_per_week:
+                            week_tasks.append({
+                                "title": prob.get("title", "Unknown"),
+                                "link": prob.get("link", "#"),
+                                "difficulty": difficulty,
+                                "expected_time_min": expected_time,
+                                "topic": topic,
+                                "completed": completed.get(prob.get("title", False))
+                            })
+                            used_minutes += expected_time
+                            problem_index += 1
+                        else:
+                            break
+                    roadmap_data[week_num] = week_tasks
+
     return render_template(
         "roadmap.html",
         show_sidebar=True,
-        companies_list=TARGET_COMPANIES,  # optional
+        companies_list=TARGET_COMPANIES,
         topics_list=TOPICS_LIST,
-        roadmap=None,  # initially no roadmap generated
+        roadmap=roadmap_data,
         selected_topics=selected_topics,
         weeks=weeks,
         hours_per_week=hours_per_week
