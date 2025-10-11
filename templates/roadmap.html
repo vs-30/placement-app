@@ -1,46 +1,35 @@
 {% extends "layout.html" %}
 {% block content %}
-<style>
-  .week-section {
-    margin-bottom: 40px;
-  }
-  .week-header {
-    font-size: 22px;
-    font-weight: bold;
-    color: #5a3eeb;
-    margin-bottom: 15px;
-  }
-  .question-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    margin-bottom: 15px;
-  }
-  .timer {
-    font-size: 18px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 10px;
-  }
-  .btn {
-    margin-right: 8px;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-weight: 500;
-    cursor: pointer;
-    border: none;
-  }
-  .btn-start { background: #4CAF50; color: white; }
-  .btn-pause { background: #ff9800; color: white; }
-  .btn-stop { background: #f44336; color: white; }
-  .btn-submit { background: #6c5ce7; color: white; margin-top: 10px; }
-</style>
-
 <div class="container mt-5">
-  <h2 class="text-center mb-4">📅 Your Personalized Roadmap</h2>
+  <h2 class="text-center mb-4">📅 Create Your Personalized Roadmap</h2>
+
+  <!-- Roadmap Form -->
+  <form action="{{ url_for('generate_roadmap') }}" method="POST" class="mb-5">
+    <div class="row mb-3">
+      <div class="col">
+        <label for="weeks">Number of Weeks:</label>
+        <input type="number" name="weeks" id="weeks" class="form-control" min="1" required
+               value="{{ request.form.get('weeks', '') }}">
+      </div>
+      <div class="col">
+        <label for="hours_per_week">Hours per Week:</label>
+        <input type="number" name="hours_per_week" id="hours_per_week" class="form-control" min="1" required
+               value="{{ request.form.get('hours_per_week', '') }}">
+      </div>
+    </div>
+    <div class="mb-3">
+      <label>Topics:</label>
+      <select name="topics" class="form-control" multiple required>
+        {% for topic in topics_list %}
+          <option value="{{ topic }}" {% if topic in selected_topics %}selected{% endif %}>{{ topic }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Generate Roadmap</button>
+  </form>
 
   {% if roadmap %}
+    <!-- Display roadmap only if available -->
     {% for week, questions in roadmap.items() %}
       <div class="week-section">
         <div class="week-header">Week {{ week }}</div>
@@ -71,7 +60,9 @@
       </div>
     {% endfor %}
   {% else %}
-    <p class="text-center mt-4">No roadmap generated yet. Please select the number of weeks, hours per week, and topics, then click "Generate Roadmap".</p>
+    <div class="alert alert-info">
+      No roadmap generated yet. Please select the number of weeks, hours per week, and topics, then click "Generate Roadmap".
+    </div>
   {% endif %}
 </div>
 
