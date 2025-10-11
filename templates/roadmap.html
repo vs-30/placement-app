@@ -1,134 +1,112 @@
 {% extends "layout.html" %}
 {% block content %}
+<style>
+  .week-section {
+    margin-bottom: 40px;
+  }
+  .week-header {
+    font-size: 22px;
+    font-weight: bold;
+    color: #5a3eeb;
+    margin-bottom: 15px;
+  }
+  .question-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    margin-bottom: 15px;
+  }
+  .timer {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+  }
+  .btn {
+    margin-right: 8px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .btn-start { background: #4CAF50; color: white; }
+  .btn-pause { background: #ff9800; color: white; }
+  .btn-stop { background: #f44336; color: white; }
+  .btn-submit { background: #6c5ce7; color: white; margin-top: 10px; }
+</style>
 
-<div class="container mt-4">
-  <h1 class="mb-4 text-primary">🧭 Personalized Coding Roadmap</h1>
+<div class="container mt-5">
+  <h2 class="text-center mb-4">📅 Your Personalized Roadmap</h2>
 
-  <!-- Roadmap Form -->
-  <form id="roadmap-form" method="POST" action="{{ url_for('generate_roadmap') }}" class="card p-4 shadow-sm">
+  {% for week, questions in roadmap.items() %}
+    <div class="week-section">
+      <div class="week-header">Week {{ week }}</div>
 
-    <!-- Weeks Input -->
-    <div class="form-group mb-3">
-      <label for="weeks" class="form-label fw-bold">Number of Weeks:</label>
-      <input type="number" name="weeks" id="weeks" min="1" required class="form-control" placeholder="e.g. 6">
-    </div>
+      {% for q in questions %}
+        <div class="question-card">
+          <h5>{{ q['name'] }}</h5>
+          <p><strong>Topic:</strong> {{ q['topic'] }} | <strong>Difficulty:</strong> {{ q['difficulty'] }}</p>
+          <p><strong>Expected Time:</strong> {{ q['expected_time'] }} min</p>
 
-    <!-- Hours Input -->
-    <div class="form-group mb-3">
-      <label for="hours_per_week" class="form-label fw-bold">Hours per Week:</label>
-      <input type="number" name="hours_per_week" id="hours_per_week" min="1" required class="form-control" placeholder="e.g. 10">
-    </div>
+          <div class="timer" id="timer-{{ week }}-{{ loop.index }}">00:00</div>
 
-    <!-- Topics -->
-    <div class="form-group mb-3">
-      <label class="form-label fw-bold">Choose Topics to Focus On:</label>
-      <div class="row">
-        {% for topic in topics_list %}
-        <div class="col-md-4 col-sm-6 mb-2">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="topics" value="{{ topic }}" id="topic_{{ loop.index }}">
-            <label class="form-check-label" for="topic_{{ loop.index }}">
-              {{ topic | title }}
-            </label>
-          </div>
+          <button class="btn btn-start" onclick="startTimer('{{ week }}-{{ loop.index }}')">Start</button>
+          <button class="btn btn-pause" onclick="pauseTimer('{{ week }}-{{ loop.index }}')">Pause</button>
+          <button class="btn btn-stop" onclick="stopTimer('{{ week }}-{{ loop.index }}')">Stop</button>
+
+          <form action="{{ url_for('submit_time') }}" method="POST" style="display:none;" id="form-{{ week }}-{{ loop.index }}">
+            <input type="hidden" name="week" value="{{ week }}">
+            <input type="hidden" name="topic" value="{{ q['topic'] }}">
+            <input type="hidden" name="question" value="{{ q['name'] }}">
+            <input type="hidden" name="difficulty" value="{{ q['difficulty'] }}">
+            <input type="hidden" name="expected_time" value="{{ q['expected_time'] }}">
+            <input type="hidden" name="actual_time" id="actual-{{ week }}-{{ loop.index }}">
+            <button type="submit" class="btn btn-submit">Submit</button>
+          </form>
         </div>
-        {% endfor %}
-      </div>
-    </div>
-
-    <!-- Submit -->
-    <button type="submit" class="btn btn-primary mt-3 w-100">Generate Roadmap</button>
-  </form>
-
-  <!-- Roadmap Display -->
-  {% if roadmap %}
-  <hr class="my-5">
-  <h3 class="text-success">📅 Week-Wise Learning Plan</h3>
-
-  {% for week, tasks in roadmap.items() %}
-  <div class="card mt-3 shadow-sm">
-    <div class="card-header bg-info text-white fw-bold">
-      Week {{ week }}
-    </div>
-    <ul class="list-group list-group-flush">
-      {% for task in tasks %}
-      <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap">
-        <div>
-          <strong>{{ task["title"] }}</strong>
-          <br>
-          <small class="text-muted">Topic: {{ task["topic"] | title }}</small>
-          <br>
-          <small class="text-info">Allocated Time: {{ task["expected_time_min"] }} min</small>
-        </div>
-        <div class="text-end">
-          {% if task["link"] %}
-          <a href="{{ task['link'] }}" target="_blank" class="btn btn-sm btn-outline-primary mb-1">View</a>
-          {% endif %}
-          <div class="btn-group mb-1">
-            <button class="btn btn-sm btn-outline-success start-timer-btn"
-                    data-minutes="{{ task['expected_time_min'] }}"
-                    data-question="{{ task['title'] }}"
-                    data-idx="{{ loop.index }}">
-              ▶ Start
-            </button>
-            <button class="btn btn-sm btn-outline-danger stop-timer-btn"
-                    data-idx="{{ loop.index }}">
-              ⏹ Stop
-            </button>
-          </div>
-          <div class="mt-1 text-danger fw-bold timer-display" id="timer-{{ loop.index }}">--:--</div>
-        </div>
-      </li>
       {% endfor %}
-    </ul>
-  </div>
+    </div>
   {% endfor %}
-  {% endif %}
 </div>
 
-<!-- Timer Script -->
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-  const timers = {};
-  const intervals = {};
+let timers = {};
 
-  // Start timer
-  document.querySelectorAll(".start-timer-btn").forEach(button => {
-    button.addEventListener("click", function() {
-      const idx = this.dataset.idx;
-      const minutes = parseInt(this.dataset.minutes);
-      const question = this.dataset.question;
-      const display = document.getElementById(`timer-${idx}`);
+function startTimer(id) {
+  if (!timers[id]) {
+    timers[id] = {seconds: 0, running: false, interval: null};
+  }
+  if (!timers[id].running) {
+    timers[id].running = true;
+    timers[id].interval = setInterval(() => {
+      timers[id].seconds++;
+      document.getElementById("timer-" + id).innerText = formatTime(timers[id].seconds);
+    }, 1000);
+  }
+}
 
-      // Clear any previous timer for this question
-      clearInterval(intervals[idx]);
-      timers[idx] = minutes * 60;
+function pauseTimer(id) {
+  if (timers[id] && timers[id].running) {
+    clearInterval(timers[id].interval);
+    timers[id].running = false;
+  } else if (timers[id] && !timers[id].running) {
+    startTimer(id);
+  }
+}
 
-      intervals[idx] = setInterval(() => {
-        const m = Math.floor(timers[idx] / 60);
-        const s = timers[idx] % 60;
-        display.textContent = `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-        timers[idx]--;
+function stopTimer(id) {
+  if (timers[id]) {
+    clearInterval(timers[id].interval);
+    timers[id].running = false;
+    document.getElementById("actual-" + id).value = timers[id].seconds;
+    document.getElementById("form-" + id).style.display = "block";
+  }
+}
 
-        if (timers[idx] < 0) {
-          clearInterval(intervals[idx]);
-          display.textContent = "Time’s up!";
-          alert(`⏰ Time’s up for "${question}"!`);
-        }
-      }, 1000);
-    });
-  });
-
-  // Stop timer
-  document.querySelectorAll(".stop-timer-btn").forEach(button => {
-    button.addEventListener("click", function() {
-      const idx = this.dataset.idx;
-      clearInterval(intervals[idx]);
-      const display = document.getElementById(`timer-${idx}`);
-      display.textContent = "--:--";
-    });
-  });
-});
+function formatTime(seconds) {
+  let m = Math.floor(seconds / 60);
+  let s = seconds % 60;
+  return String(m).padStart(2, '0') + ":" + String(s).padStart(2, '0');
+}
 </script>
-
 {% endblock %}

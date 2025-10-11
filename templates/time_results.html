@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+  .result-card {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-top: 30px;
+  }
+  .result-score {
+    background: #6c5ce7;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: bold;
+  }
+</style>
+
+<div class="container mt-5">
+  <div class="result-card">
+    <h3 class="text-primary mb-3">⏱ Time Efficiency Report</h3>
+    <p><strong>Topic:</strong> {{ topic }}</p>
+    <p><strong>Expected Time:</strong> {{ expected_time }} min | <strong>Your Time:</strong> {{ actual_time }} min</p>
+
+    {% if exceeded %}
+      <p class="text-danger">⚠ You exceeded the expected time.</p>
+    {% else %}
+      <p class="text-success">✅ Completed within expected time!</p>
+    {% endif %}
+
+    <h5 class="mt-4">📊 Summary of Time Overruns</h5>
+    {% for t, score in scores.items() %}
+      <div class="d-flex justify-content-between align-items-center">
+        <span>{{ t }}</span>
+        <span class="result-score">{{ score }} overrun(s)</span>
+      </div>
+    {% endfor %}
+
+    <a href="{{ url_for('roadmap') }}" class="btn btn-outline-primary mt-3">Back to Roadmap</a>
+  </div>
+</div>
+{% endblock %}

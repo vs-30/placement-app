@@ -421,6 +421,35 @@ def company_results():
 def role_quiz():
     return render_template("quiz.html", show_sidebar=True)
 
+@app.route("/submit_time", methods=["POST"])
+def submit_time():
+    week = request.form.get("week")
+    topic = request.form.get("topic")
+    question = request.form.get("question")
+    difficulty = request.form.get("difficulty")
+    expected_time = int(request.form.get("expected_time"))
+    actual_time = int(request.form.get("actual_time")) // 60  # seconds to minutes
+
+    exceeded = actual_time > expected_time
+
+    if "time_scores" not in session:
+        session["time_scores"] = {}
+
+    if topic not in session["time_scores"]:
+        session["time_scores"][topic] = 0
+
+    if exceeded:
+        session["time_scores"][topic] += 1
+
+    return render_template(
+        "time_results.html",
+        topic=topic,
+        exceeded=exceeded,
+        actual_time=actual_time,
+        expected_time=expected_time,
+        scores=session["time_scores"]
+    )
+
 @app.route("/resume_checker", methods=["GET", "POST"])
 def resume_checker():
     if request.method == "POST":
